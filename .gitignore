@@ -2,9 +2,8 @@
 # Tumor_immunity_analysis
 #
 # The governing rule of this repository: CODE travels through git, DATA never
-# does. Every dataset lives on TACC under $SCRATCH and is reproducible from
-# config/datasets_manifest.csv. Nothing in data/ is ever committed, from either
-# side of the sync.
+# does. Every dataset lives on TACC under $SCRATCH. Nothing in data/ is ever
+# committed, from either side of the sync.
 #
 # The directories themselves ARE tracked, via .gitkeep, so that a fresh clone
 # on a laptop has exactly the same paths as the TACC checkout. Code can then
