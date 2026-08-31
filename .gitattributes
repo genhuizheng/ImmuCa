@@ -1,0 +1,26 @@
+# Normalise line endings. The authoritative checkout is on Linux (Vista); the
+# editing checkout is on Windows. Without this, every shell script committed
+# from Windows arrives on TACC with CRLF and fails as:
+#
+#     /bin/bash^M: bad interpreter: No such file or directory
+#
+# which is the single most common way this kind of two-sided workflow breaks.
+* text=auto eol=lf
+
+# Files that must stay LF no matter what, because Linux executes them.
+*.sh   text eol=lf
+*.slurm text eol=lf
+*.py   text eol=lf
+*.R    text eol=lf
+
+# Binary: never touch, never try to diff.
+*.h5ad binary
+*.h5   binary
+*.rds  binary
+*.png  binary
+*.pdf  binary
+*.gz   binary
+
+# Notebooks: mark as text so diffs are possible, but strip outputs before
+# committing (see scripts/setup_git_local.sh, which installs the filter).
+*.ipynb text

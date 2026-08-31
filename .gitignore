@@ -1,0 +1,23 @@
+#-----------------------------------------------------------------------------
+# Tumor_immunity_analysis
+#
+# The governing rule of this repository: CODE travels through git, DATA never
+# does. Every dataset lives on TACC under $SCRATCH and is reproducible from
+# config/datasets_manifest.csv. Nothing in data/ is ever committed, from either
+# side of the sync.
+#
+# The directories themselves ARE tracked, via .gitkeep, so that a fresh clone
+# on a laptop has exactly the same paths as the TACC checkout. Code can then
+# hardcode `data/raw/<GSEID>/` and be correct in both places -- empty locally,
+# populated on Vista.
+#-----------------------------------------------------------------------------
+
+#--- Data trees: structure tracked, contents never -------------------------
+# Ignore everything inside, then re-admit the .gitkeep that holds the dir.
+data/**
+!data/
+!data/*/
+!data/**/.gitkeep
+
+#--- Claude Code local settings --------------------------------------------
+.claude/settings.local.json
