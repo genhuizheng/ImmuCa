@@ -77,7 +77,9 @@ def describe_column(name: str, series) -> str:
 
 
 def matrix_report(adata) -> list[str]:
-    """Raw counts or normalised? Decided from values, never from a filename."""
+    """Raw counts or normalised? Decided from the values, never from a filename."""
+    from scipy import sparse
+
     out = []
     X = adata.X
     if X is None:
@@ -89,27 +91,43 @@ def matrix_report(adata) -> list[str]:
     except Exception as exc:
         return [f"    X unreadable in backed mode: {exc}"]
 
-    data = chunk.data if hasattr(chunk, "data") else np.asarray(chunk).ravel()
-    data = data[np.isfinite(data)]
-    if data.size == 0:
-        return [f"    X dtype={getattr(X, 'dtype', '?')}  first {n} cells are all zero"]
+    # NOT `hasattr(chunk, "data")`: numpy exposes ndarray.data as a memoryview of
+    # the raw buffer, so that test sends every dense matrix down the sparse path
+    # and np.isfinite then fails on a memoryview. scVI outputs are dense.
+    if sparse.issparse(chunk):
+        values = np.asarray(chunk.data).ravel()
+        kind = f"sparse {type(chunk).__name__}"
+    else:
+        values = np.asarray(chunk).ravel()
+        kind = "dense ndarray"
 
-    is_int = bool(np.allclose(data, np.rint(data)))
-    vmax = float(data.max())
+    values = values[np.isfinite(values)]
+    nz = values[values != 0]
+    if nz.size == 0:
+        return [f"    X {kind} dtype={getattr(X, 'dtype', '?')}  "
+                f"first {n} cells are entirely zero"]
+
+    is_int = bool(np.allclose(nz, np.rint(nz)))
+    vmin, vmax = float(nz.min()), float(nz.max())
+    density = nz.size / values.size if values.size else float("nan")
+
     out.append(
-        f"    X dtype={getattr(X, 'dtype', '?')}  "
-        f"first {n} cells: min={data.min():.4g} max={vmax:.4g} "
-        f"nnz={data.size}  all-integer={is_int}"
+        f"    X {kind} dtype={getattr(X, 'dtype', '?')}  first {n} cells: "
+        f"nonzero min={vmin:.4g} max={vmax:.4g}  density={density:.3f}  "
+        f"all-integer={is_int}"
     )
-    # The heuristic, stated so a reader can disagree with it.
-    if is_int and vmax > 30:
+    # Heuristic, stated openly so a reader can disagree with it.
+    if vmin < 0:
+        verdict = ("SCALED / latent (negative values) -- z-scored expression or an "
+                   "embedding, NOT valid scSurvival input")
+    elif is_int and vmax > 30:
         verdict = "RAW COUNTS (integer-valued, large max)"
     elif not is_int and vmax < 20:
         verdict = "log-normalised (non-integer, small max) -- what scSurvival expects"
     elif not is_int:
-        verdict = f"normalised but max={vmax:.4g} is high for log1p; check the notebook"
+        verdict = f"normalised, but max={vmax:.4g} is high for log1p; check the notebook"
     else:
-        verdict = "integer but small max; ambiguous"
+        verdict = "integer with small max; ambiguous"
     out.append(f"    -> looks like: {verdict}")
     return out
 
@@ -140,15 +158,21 @@ def inspect(path: Path) -> None:
         print(f"\n  shape: {adata.n_obs:,} cells x {adata.n_vars:,} genes")
 
         print("\n  X:")
-        for line in matrix_report(adata):
-            print(line)
+        try:
+            for line in matrix_report(adata):
+                print(line)
+        except Exception as exc:
+            print(f"    X report failed: {type(exc).__name__}: {exc}")
 
         layers = list(getattr(adata, "layers", {}) or {})
         print(f"\n  layers: {layers if layers else 'none'}")
 
         print(f"\n  obs: {adata.obs.shape[1]} columns")
         for col in adata.obs.columns:
-            print(describe_column(col, adata.obs[col]))
+            try:
+                print(describe_column(col, adata.obs[col]))
+            except Exception as exc:
+                print(f"    {col:<32} <unsummarisable: {type(exc).__name__}>")
 
         print(f"\n  var: {adata.var.shape[1]} columns")
         for col in adata.var.columns:
