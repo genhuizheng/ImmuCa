@@ -66,7 +66,64 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def check_lognormalised(adata) -> None:
+def _read_elem(elem):
+    """anndata moved read_elem between releases; accept either location."""
+    try:
+        from anndata.io import read_elem
+    except ImportError:
+        from anndata.experimental import read_elem
+    return read_elem(elem)
+
+
+def read_obs_only(path):
+    """Just the obs table.
+
+    `sc.read_h5ad` also materialises `.raw`, and these files carry one: CD8.h5ad
+    has 518,480,432 nonzeros under /raw/X, which is ~2 GB of values plus indices
+    before the main matrix is touched. That is enough to be killed by a login
+    node's memory cap. Labels and fold assignment need none of it.
+    """
+    import h5py
+
+    with h5py.File(path, "r") as f:
+        return _read_elem(f["obs"])
+
+
+def peek_x(path, n=200):
+    """First n rows of X, without loading X -- or /raw -- in full."""
+    import h5py
+
+    with h5py.File(path, "r") as f:
+        if "X" not in f:
+            raise SystemExit(f"{path} has no X")
+        x = f["X"]
+        if isinstance(x, h5py.Dataset):
+            return np.asarray(x[: min(n, x.shape[0])])
+        try:
+            from anndata.io import sparse_dataset
+        except ImportError:
+            from anndata.experimental import sparse_dataset
+        return sparse_dataset(x)[: n]
+
+
+def read_adata_no_raw(path):
+    """X, obs and var -- deliberately skipping /raw.
+
+    `.raw` holds the pre-filter counts and is never used here: preprocessing is
+    the caller's job and HVG selection happens per fold on X. Reading it costs
+    several GB and buys nothing.
+    """
+    import h5py
+    from anndata import AnnData
+
+    with h5py.File(path, "r") as f:
+        X = _read_elem(f["X"])
+        obs = _read_elem(f["obs"])
+        var = _read_elem(f["var"])
+    return AnnData(X=X, obs=obs, var=var)
+
+
+def check_lognormalised(chunk) -> None:
     """Refuse raw counts. scSurvival trains on them without complaint.
 
     This is the failure mode that produces a plausible wrong answer rather than
@@ -74,8 +131,6 @@ def check_lognormalised(adata) -> None:
     """
     from scipy import sparse
 
-    n = min(200, adata.n_obs)
-    chunk = adata.X[:n]
     vals = np.asarray(chunk.data if sparse.issparse(chunk) else chunk).ravel()
     nz = vals[np.isfinite(vals) & (vals != 0)]
     if nz.size == 0:
@@ -166,37 +221,44 @@ def main(argv=None) -> int:
 
     sys.path.insert(0, str(args.package_dir))
 
-    import scanpy as sc
+    # scanpy is imported later, in the training path only. --dry-run then needs
+    # just h5py/numpy/pandas/sklearn, so it stays runnable in a bare env and on
+    # a login node.
     from sklearn.model_selection import KFold, StratifiedKFold
 
-    log(f"reading {args.adata}")
-    adata = sc.read_h5ad(args.adata)
-    log(f"{adata.n_obs:,} cells x {adata.n_vars:,} genes")
+    # obs and a 200-cell slice of X are all that labels, folds and the scale
+    # check require. The full matrix is read only when there is training to do.
+    log(f"reading obs from {args.adata}")
+    obs = read_obs_only(args.adata)
+    log(f"{len(obs):,} cells, {obs.shape[1]} obs columns")
 
-    if args.sample_col not in adata.obs:
+    if args.sample_col not in obs:
         raise SystemExit(f"'{args.sample_col}' not in obs. Available: "
-                         f"{list(adata.obs.columns)[:30]}")
-    check_lognormalised(adata)
+                         f"{list(obs.columns)[:30]}")
+    check_lognormalised(peek_x(args.adata))
 
-    # ---- labels, and the subset of cells that carry a usable one ----------
+    class _ObsOnly:  # build_labels only touches .obs
+        def __init__(self, obs): self.obs = obs
+
+    # ---- labels, and the samples that carry a usable one ------------------
     if args.task == "classification":
-        y, mapping = build_labels(adata, args.sample_col, args.label_col)
+        y, mapping = build_labels(_ObsOnly(obs), args.sample_col, args.label_col)
         samples = np.array(y.index)
-        adata = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, samples)))].copy()
         strat = y.values
+        surv = None
     else:
         surv = pd.read_csv(args.surv_csv, index_col=0)
         for c in ("time", "status"):
             if c not in surv.columns:
                 raise SystemExit(f"--surv-csv must contain a '{c}' column")
-        present = set(adata.obs[args.sample_col].astype(str))
+        present = set(obs[args.sample_col].astype(str))
         surv = surv[surv.index.astype(str).isin(present)]
         samples = np.array(surv.index)
-        adata = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, samples)))].copy()
         strat = surv["status"].values
         y, mapping = None, None
 
-    log(f"{len(samples)} samples with a usable outcome, {adata.n_obs:,} cells retained")
+    n_cells_kept = int(obs[args.sample_col].astype(str).isin(set(map(str, samples))).sum())
+    log(f"{len(samples)} samples with a usable outcome, {n_cells_kept:,} cells retained")
     if len(samples) < args.folds * 2:
         log(f"WARNING: {len(samples)} samples over {args.folds} folds is very thin; "
             "each fold's estimate will be dominated by one or two samples.")
@@ -217,7 +279,17 @@ def main(argv=None) -> int:
 
     if args.dry_run:
         log("--dry-run: inputs valid, folds built, nothing trained")
+        log("(only obs and 200 rows of X were read -- the matrix was never loaded)")
         return 0
+
+    # Only now is the matrix needed. Skipping /raw keeps this to roughly the
+    # size of X; loading raw as well is what exhausts memory on a login node.
+    import scanpy as sc
+
+    log("reading X, obs, var (skipping /raw) ...")
+    adata = read_adata_no_raw(args.adata)
+    adata = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, samples)))].copy()
+    log(f"{adata.n_obs:,} cells x {adata.n_vars:,} genes in memory")
 
     from scSurvival_e import scSurvivalRun, PredictIndSample
 
