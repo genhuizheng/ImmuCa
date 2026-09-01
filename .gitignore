@@ -20,3 +20,21 @@ data/**
 
 #--- Claude Code local settings --------------------------------------------
 .claude/settings.local.json
+
+#--- Vendor bundles from colleagues ----------------------------------------
+# ImmuCA/ and scSurvival-extend/ are their authors' code, extracted here only so
+# it can be read. The authoritative copies live on Vista under data/ (212 GB and
+# 6.9 GB respectively) and both trees carry notebooks with embedded outputs that
+# run to several MB each. Read them locally; never commit them.
+/ImmuCA/
+/scSurvival-extend/
+*.tar.gz
+
+#--- Slides -----------------------------------------------------------------
+# The project decks are 16-22 MB apiece. Useful to have locally, not in history.
+*.pptx
+
+#--- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
