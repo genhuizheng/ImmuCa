@@ -1,0 +1,1063 @@
+# NOTE: 162 files found, inspecting the 30 largest. Raise --max-files to see the rest.
+
+# inspected 30 file(s)
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/results/all_samples_from_cancer/sce_all_samples_scVI.h5ad
+   12.1 GB on disk
+==============================================================================
+
+  shape: 267,136 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/results/all_samples_from_cancer/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results/sce_all_samples_scVI.h5ad
+   10.9 GB on disk
+==============================================================================
+
+  shape: 258,372 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_outer/sce_all_samples_scVI.h5ad
+   10.7 GB on disk
+==============================================================================
+
+  shape: 258,372 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_outer/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_0/sce_all_samples_scVI.h5ad
+   10.5 GB on disk
+==============================================================================
+   backed='r' failed; falling back to h5py key listing
+    X
+    layers
+    layers/counts
+    layers/counts/data
+    layers/counts/indices
+    layers/counts/indptr
+    layers/scvi
+    obs
+    obs/_scvi_batch
+    obs/_scvi_labels
+    obs/anatomical_location
+    obs/anatomical_location/categories
+    obs/anatomical_location/codes
+    obs/batch
+    obs/batch/categories
+    obs/batch/codes
+    obs/cancer_type
+    obs/cancer_type/categories
+    obs/cancer_type/codes
+    obs/cell_cycle_phase
+    obs/cell_cycle_phase/categories
+    obs/cell_cycle_phase/codes
+    obs/cell_name
+    obs/cell_subtype
+    obs/cell_subtype/categories
+    obs/cell_subtype/codes
+    obs/cell_type
+    obs/cell_type/categories
+    obs/cell_type/codes
+    obs/complexity
+    obs/ct_response
+    obs/ct_response/categories
+    obs/ct_response/codes
+    obs/disease
+    obs/disease/categories
+    obs/disease/codes
+    obs/encode.celltype
+    obs/encode.celltype/categories
+    obs/encode.celltype/codes
+    obs/g1s_score
+    obs/g2m_score
+    obs/histology
+    obs/histology/categories
+    obs/histology/codes
+    obs/hpca.celltype
+    obs/hpca.celltype/categories
+    obs/hpca.celltype/codes
+    obs/mp_assignment
+    obs/mp_assignment/categories
+    obs/mp_assignment/codes
+    obs/mp_top
+    obs/mp_top/categories
+    obs/mp_top/codes
+    obs/mp_top_score
+    obs/nCount_RNA
+    obs/nFeature_RNA
+    obs/patient
+    obs/patient/categories
+    obs/patient/codes
+    obs/percent.mt
+    obs/sample
+    obs/sample/categories
+    obs/sample/codes
+    obs/sample_site
+    obs/sample_site/categories
+    obs/sample_site/codes
+    obs/sorting
+    obs/sorting/categories
+    obs/sorting/codes
+    obs/source
+    obs/source/categories
+    obs/source/codes
+    obs/stage
+    obs/stage/categories
+    obs/stage/codes
+    obs/subtype
+    obs/subtype/categories
+    obs/subtype/codes
+    obs/treatment_phase
+    obs/treatment_phase/categories
+    obs/treatment_phase/codes
+    obs/tumor_grade
+    obs/tumor_stage
+    obs/tumor_stage/categories
+    obs/tumor_stage/codes
+    obs/umap1
+    obs/umap2
+    obsm
+    obsm/X_pca
+    obsm/X_scVI
+    obsm/X_umap
+    obsm/X_umap_raw
+    obsp
+    obsp/connectivities
+    obsp/connectivities/data
+    obsp/connectivities/indices
+    obsp/connectivities/indptr
+    obsp/distances
+    obsp/distances/data
+    obsp/distances/indices
+    obsp/distances/indptr
+    raw
+    raw/X
+    raw/X/data
+    raw/X/indices
+    raw/X/indptr
+    raw/var
+    raw/var/_index
+    raw/var/n_cells
+    raw/varm
+    uns
+    uns/_scvi_manager_uuid
+    uns/_scvi_uuid
+    uns/cell_type_colors
+    uns/hvg
+    uns/hvg/flavor
+    uns/log1p
+    uns/neighbors
+    uns/neighbors/connectivities_key
+    uns/neighbors/distances_key
+    uns/neighbors/params
+    uns/neighbors/params/method
+    uns/neighbors/params/metric
+    uns/neighbors/params/n_neighbors
+    uns/neighbors/params/n_pcs
+    uns/neighbors/params/random_state
+    uns/neighbors/params/use_rep
+    uns/pca
+    uns/pca/params
+    uns/pca/params/mask_var
+    uns/pca/params/use_highly_variable
+    uns/pca/params/zero_center
+    uns/pca/variance
+    uns/pca/variance_ratio
+    uns/sample_colors
+    uns/umap
+    uns/umap/params
+    uns/umap/params/a
+    uns/umap/params/b
+    var
+    var/_index
+    var/highly_variable
+    var/highly_variable_rank
+    var/mean
+    var/means
+    var/n_cells
+    var/std
+    var/variances
+    var/variances_norm
+    varm
+    varm/PCs
+    varp
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/source_data/seurat_obj_all.h5ad
+   5.9 GB on disk
+==============================================================================
+
+  shape: 716,763 cells x 23,667 genes
+
+  X:
+    X dtype=float64  first 200 cells: min=0.4093 max=8.463 nnz=304322  all-integer=False
+    -> looks like: log-normalised (non-integer, small max) -- what scSurvival expects
+
+  layers: none
+
+  obs: 27 columns
+    orig.ident                       object       n_unique=178      'BMET1-Tumor', 'BMET10-Tumor', 'BMET11-Tumor', 'BMET2-Tumor', 'BMET3-Tumor', 'BMET5-Tumor', 'BMET6-Tumor', 'BMET7-Tumor', ... (+170 more)
+    nCount_RNA                       float64      n_unique=159380   range [88, 1e+06] median 3443
+    nFeature_RNA                     int32        n_unique=8425     range [66, 1.049e+04] median 1291
+    SampleID                         object       n_unique=197      'BMET1-Tumor', 'BMET10-Tumor', 'BMET11-Tumor', 'BMET2-Tumor', 'BMET3-Tumor', 'BMET5-Tumor', 'BMET6-Tumor', 'BMET7-Tumor', ... (+189 more)
+    barcode                          object       n_unique=716763   'BMET1-Tumor_AAACCTGGTCAACATC-1_1', 'BMET1-Tumor_AAACCTGTCTAAGCCA-1_1', 'BMET1-Tumor_AAACGGGAGATCACGG-1_1', 'BMET1-Tumor_AAACGGGGTCTCCATC-1_1', 'BMET1-Tumor_AAACGGGTCATGTCCC-1_1', 'BMET1-Tumor_AAACGGGTCCCAGGTG-1_1', 'BMET1-Tumor_AAAGATGAGTCCGGTC-1_1', 'BMET1-Tumor_AAAGATGAGTTTGCGT-1_1', ... (+716755 more)
+    celltype.article                 object       n_unique=135      'Mature B', 'Osteoblasts', 'CTL-2', 'NK', 'Osteoclasts', 'Mono3', 'mDC', 'Pericytes', ... (+127 more)
+    celltype.sub.article             object       n_unique=127      'Mature B', 'Osteoblasts', 'CD8+ T', 'NK', 'Osteoclasts', 'Monocytes', 'mDC', 'Pericytes', ... (+119 more)
+    celltype                         object       n_unique=21       'B', 'Fib', 'Treg', 'CD4T', 'NK', 'Mye', 'MyoFib', 'CD8T', ... (+13 more)
+    Group                            object       n_unique=8        'CRPC', 'N', 'Pri', 'Adj', 'BPH', 'mLN', 'LN', 'ICC'
+    Group2                           object       n_unique=8        'mCRPC', 'N', 'HSPC', 'Adj', 'CRPC', 'BPH', 'mHSPC', 'ICC'
+    Group3                           object       n_unique=9        'mCRPC', 'N', 'HSPC', 'Adj', 'CRPC', 'NEPC', 'BPH', 'mHSPC', ... (+1 more)
+    Gleason                          object       n_unique=20       'mCRPC', 'N', '3+4=7', 'Adj', '3+3=6', '5+4=9', '4+3=7', 'CRPC', ... (+12 more)
+    Gleason_group                    object       n_unique=16       'mCRPC', 'N', '7', 'Adj', '6', '9', 'CRPC', 'CRPC-NE', ... (+8 more)
+    PatientID                        object       n_unique=146      'BMET1', 'BMET10', 'BMET11', 'BMET2', 'BMET3', 'BMET5', 'BMET6', 'BMET7', ... (+138 more)
+    Data.sets                        object       n_unique=19       'CancerCell.Kfoury.2021', 'CellRep.Henry.2018', 'CellRep.Tuong.2021', 'CommunBiol.Dong.2020', 'Elife.Crowley.2020', 'iScience.Wang.2022', 'JPathol.Joseph.2021', 'JPathol.Joseph.2022', ... (+11 more)
+    Age                              int32        n_unique=36       range [-2.147e+09, 86] median 59
+    Site                             object       n_unique=9        'Bone', 'Prostate', 'LN', 'NA', 'Liver', 'Mediastinal mass', 'Brain', 'Epidural', ... (+1 more)
+    PSA                              object       n_unique=69       '227.5', '91.7', '48.4', '108.9', '0.12', '23.3', '42.8', '12.5', ... (+61 more)
+    Core_or_extension                object       n_unique=1        'Core'
+    infercnv                         object       n_unique=8        'Ref_Immune', 'Spike_stromal', 'Epi_Luminal', 'Epi_Basal', 'Epi_Club', 'Epi_Hillock', 'Epi_OE', 'Epi_NE'
+    ct.BBKNN                         int32        n_unique=16       range [0, 15] median 7
+    ct.BBKNN.main                    int32        n_unique=7        np.int32(6), np.int32(1), np.int32(5), np.int32(0), np.int32(3), np.int32(2), np.int32(4)
+    ct.L1                            object       n_unique=7        'B', 'Fib', 'T', 'Epi', 'Mye', 'Endo', 'Mast'
+    ct.L2                            object       n_unique=24       'B', 'CAFs', 'CD4T', 'NK/NKT', 'Filter', 'Mph', 'Mye_cycling', 'myoCAFs', ... (+16 more)
+    ct.L3                            object       n_unique=72       'Memory B', 'mCAFs', 'CD4Tem_GZMK', 'CD4Tm_TIMP1', 'NK_CD16-', 'Filter', 'Mph_C1QC', 'Mye_MKI67', ... (+64 more)
+    UMAP_1                           float64      n_unique=708313   range [-4.312, 17.53] median 7.627
+    UMAP_2                           float64      n_unique=706019   range [-5.166, 19.14] median 9.049
+
+  var: 5 columns
+    vst.mean                         float64      n_unique=22594    range [0.0005344, 230.2] median 0.04417
+    vst.variance                     float64      n_unique=23666    range [0.0005088, 2.402e+07] median 2.294
+    vst.variance.expected            float64      n_unique=22594    range [0.0004565, 8.906e+06] median 2.049
+    vst.variance.standardized        float64      n_unique=23664    range [0.0145, 37.4] median 0.9768
+    vst.variable                     int32        n_unique=2        np.int32(0), np.int32(1)
+    var_names[:5] = ['MALAT1', 'IGLL5', 'TMSB4X', 'B2M', 'EEF1A1']
+    var_names unique: True
+
+  obsm: [('X_umap', (716763, 2))]
+
+  uns keys: none
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/all_samples/sce_all_samples_scVI_CAcells_with_results.h5ad
+   5.6 GB on disk
+==============================================================================
+
+  shape: 128,100 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/all_samples/sce_all_samples_scVI_CAcells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results/cancer_cells_with_results.h5ad
+   5.0 GB on disk
+==============================================================================
+
+  shape: 94,453 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_outer/T_cell&NK_cell/cancer_cells_with_results.h5ad
+   5.0 GB on disk
+==============================================================================
+
+  shape: 94,453 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_outer/T_cell&NK_cell/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_outer/T_cell/cancer_cells_with_results.h5ad
+   5.0 GB on disk
+==============================================================================
+
+  shape: 94,453 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_outer/T_cell/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_0/T&NK/cancer_cells_with_results.h5ad
+   4.8 GB on disk
+==============================================================================
+
+  shape: 94,453 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_0/T&NK/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_0/T_cell/cancer_cells_with_results.h5ad
+   4.8 GB on disk
+==============================================================================
+
+  shape: 94,453 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_0/T_cell/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_0/cancer_cells_with_results.h5ad
+   4.8 GB on disk
+==============================================================================
+
+  shape: 94,453 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Ovarian/results_0/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/sce_10_samples_scVI.h5ad
+   4.5 GB on disk
+==============================================================================
+
+  shape: 40,440 cells x 8,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/sce_10_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/sce_all_samples_scVI.h5ad
+   4.4 GB on disk
+==============================================================================
+
+  shape: 97,045 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Breast/results/T_cell/cancer_cells_with_results.h5ad
+   4.1 GB on disk
+==============================================================================
+
+  shape: 103,466 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Breast/results/T_cell/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/results/all_samples_from_cancer/cancer_cells_with_results.h5ad
+   4.0 GB on disk
+==============================================================================
+
+  shape: 94,344 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/results/all_samples_from_cancer/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/results/all_samples/cancer_cells_with_results.h5ad
+   4.0 GB on disk
+==============================================================================
+
+  shape: 93,995 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/results/all_samples/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Prostate_cancer/source_data/seurat_obj.h5ad
+   3.2 GB on disk
+==============================================================================
+
+  shape: 267,136 cells x 23,638 genes
+
+  X:
+    X dtype=float64  first 200 cells: min=0.2793 max=8.171 nnz=474021  all-integer=False
+    -> looks like: log-normalised (non-integer, small max) -- what scSurvival expects
+
+  layers: none
+
+  obs: 47 columns
+    orig.ident                       object       n_unique=178      'BMET1-Tumor', 'BMET10-Tumor', 'BMET11-Tumor', 'BMET2-Tumor', 'BMET3-Tumor', 'BMET5-Tumor', 'BMET6-Tumor', 'BMET7-Tumor', ... (+170 more)
+    nCount_RNA                       float64      n_unique=104947   range [60, 9.306e+05] median 4033
+    nFeature_RNA                     int32        n_unique=8150     range [51, 1.03e+04] median 2251
+    SampleID                         object       n_unique=194      'BMET1-Tumor', 'BMET10-Tumor', 'BMET11-Tumor', 'BMET2-Tumor', 'BMET3-Tumor', 'BMET5-Tumor', 'BMET6-Tumor', 'BMET7-Tumor', ... (+186 more)
+    barcode                          object       n_unique=267136   'BMET1-Tumor_ACACCCTAGCTCAACT-1_1', 'BMET1-Tumor_ACATACGCACAGATTC-1_1', 'BMET1-Tumor_ACATGGTAGTGTCTCA-1_1', 'BMET1-Tumor_AGAGCGAAGCGTAGTG-1_1', 'BMET1-Tumor_AGATCTGCAGTGACAG-1_1', 'BMET1-Tumor_AGATTGCCAGTCAGAG-1_1', 'BMET1-Tumor_AGCGTCGTCCAGAGGA-1_1', 'BMET1-Tumor_AGGTCATCAAATCCGT-1_1', ... (+267128 more)
+    Group                            object       n_unique=8        'CRPC', 'N', 'Pri', 'Adj', 'BPH', 'mLN', 'LN', 'ICC'
+    Group2                           object       n_unique=8        'mCRPC', 'N', 'HSPC', 'Adj', 'CRPC', 'BPH', 'mHSPC', 'ICC'
+    Group3                           int32        n_unique=9        range [0, 8] median 2
+    Gleason                          object       n_unique=20       'mCRPC', 'N', '3+4=7', 'Adj', '3+3=6', '5+4=9', '4+3=7', 'CRPC', ... (+12 more)
+    Gleason_group                    object       n_unique=16       'mCRPC', 'N', '7', 'Adj', '6', '9', 'CRPC', 'CRPC-NE', ... (+8 more)
+    PatientID                        object       n_unique=143      'BMET1', 'BMET10', 'BMET11', 'BMET2', 'BMET3', 'BMET5', 'BMET6', 'BMET7', ... (+135 more)
+    Data.sets                        object       n_unique=19       'CancerCell.Kfoury.2021', 'CellRep.Henry.2018', 'CellRep.Tuong.2021', 'CommunBiol.Dong.2020', 'Elife.Crowley.2020', 'iScience.Wang.2022', 'JPathol.Joseph.2021', 'JPathol.Joseph.2022', ... (+11 more)
+    Age                              int32        n_unique=36       range [-2.147e+09, 86] median -2.147e+09
+    Site                             object       n_unique=9        'Bone', 'Prostate', 'LN', 'NA', 'Liver', 'Mediastinal mass', 'Brain', 'Epidural', ... (+1 more)
+    PSA                              object       n_unique=69       '227.5', '91.7', '48.4', '108.9', '0.12', '23.3', '42.8', '12.5', ... (+61 more)
+    Core_or_extension                object       n_unique=1        'Core'
+    infercnv                         object       n_unique=8        'Epi_Luminal', 'Ref_Immune', 'Spike_stromal', 'Epi_Basal', 'Epi_Club', 'Epi_Hillock', 'Epi_OE', 'Epi_NE'
+    Gleason_group2                   object       n_unique=12       'mCRPC', 'N', 'GS=7', 'Adj', 'GS<7', 'GS>7', 'CRPC', 'NEPC', ... (+4 more)
+    ct.L1                            object       n_unique=1        'Epi'
+    ct.L2                            object       n_unique=6        'Luminal', 'LPCs', 'Basal', 'Club', 'Hillock', 'NE'
+    ct.L3                            object       n_unique=14       'Luminal_DPP4+', 'Luminal_KLK4+', 'LPCs_Late_HMMR-', 'LPCs_Early_HMMR+', 'Basal', 'Luminal_ERG+', 'Club_PIGR+', 'Hillock', ... (+6 more)
+    cnv_score                        float64      n_unique=262      range [0.002629, 0.1286] median 0.01434
+    cnv_status                       object       n_unique=2        'Tumor', 'Normal'
+    B                                float64      n_unique=132      range [0, 43.56] median 0.1793
+    CAFs                             float64      n_unique=167      range [0, 21.6] median 1.708
+    CD4T                             float64      n_unique=157      range [0, 53.95] median 2.835
+    NK                               float64      n_unique=154      range [0, 43.81] median 0.2412
+    Filter                           float64      n_unique=193      range [0, 53.6] median 2.736
+    Mph                              float64      n_unique=165      range [0, 29.47] median 1.859
+    Mye_cycling                      float64      n_unique=133      range [0, 11.17] median 0.02283
+    myoCAFs                          float64      n_unique=158      range [0, 15.31] median 0.8223
+    CD8T                             float64      n_unique=156      range [0, 57.24] median 2.579
+    Pericyte                         float64      n_unique=151      range [0, 21.14] median 0.1696
+    Mono                             float64      n_unique=157      range [0, 41.39] median 0.1115
+    DCs                              float64      n_unique=161      range [0, 10.85] median 0.3184
+    Endo                             float64      n_unique=181      range [0, 48.2] median 4.382
+    Plasma B                         float64      n_unique=109      range [0, 19.8] median 0.03321
+    Luminal                          float64      n_unique=188      range [0, 98.67] median 1.526
+    LPCs                             float64      n_unique=147      range [0, 97.11] median 0.128
+    ILC3                             float64      n_unique=117      range [0, 1.674] median 0.05736
+    T_MKI67                          float64      n_unique=124      range [0, 3.876] median 0.02054
+    Basal                            float64      n_unique=167      range [0, 74.58] median 6.213
+    Club                             float64      n_unique=166      range [0, 52.65] median 4.847
+    Hillock                          float64      n_unique=124      range [0, 43.15] median 0.8794
+    NE                               float64      n_unique=98       range [0, 83.17] median 0.0381
+    Mast                             float64      n_unique=149      range [0, 24.73] median 0.4344
+    Neutrophils                      float64      n_unique=47       range [0, 22.29] median 0
+
+  var: 5 columns
+    vst.mean                         float64      n_unique=22229    range [1.05e-05, 223.2] median 0.04949
+    vst.variance                     float64      n_unique=23564    range [1.049e-05, 2.12e+07] median 1.065
+    vst.variance.expected            float64      n_unique=22229    range [1.392e-05, 3.85e+06] median 1.149
+    vst.variance.standardized        float64      n_unique=23572    range [0.0248, 30.86] median 0.8079
+    vst.variable                     int32        n_unique=2        np.int32(0), np.int32(1)
+    var_names[:5] = ['MALAT1', 'IGLL5', 'TMSB4X', 'B2M', 'EEF1A1']
+    var_names unique: True
+
+  obsm: [('X_umap', (267136, 2))]
+
+  uns keys: none
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/20_samples.raw/sce_all_samples_scVI.h5ad
+   2.9 GB on disk
+==============================================================================
+
+  shape: 66,476 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/20_samples.raw/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/30_samples/sce_all_samples.h5ad
+   2.5 GB on disk
+==============================================================================
+
+  shape: 125,667 cells x 33,538 genes
+
+  X:
+    X dtype=float64  first 200 cells: min=1 max=8087 nnz=227039  all-integer=True
+    -> looks like: RAW COUNTS (integer-valued, large max)
+
+  layers: none
+
+  obs: 45 columns
+    nCount_RNA                       float64      n_unique=18371    range [605, 4.428e+04] median 3085
+    nFeature_RNA                     int32        n_unique=4890     range [501, 5825] median 1421
+    celltype                         category     n_unique=20       'Stromal', 'CD4.T', 'B', 'NK', 'cDC', 'Endothelial', 'Monocyte', 'Malign.Epi', ... (+12 more)
+    MHC.Celltype                     category     n_unique=21       'Stromal', 'CD4.T', 'B', 'NK', 'cDC', 'Endothelial', 'Monocyte', 'Respond_Malign.Epi', ... (+13 more)
+    sample                           category     n_unique=30       'CRX030762', 'CRX030763', 'CRX030764', 'CRX030765', 'CRX030766', 'CRX030767', 'CRX030768', 'CRX030769', ... (+22 more)
+    CD4.T.cellnumber                 float64      n_unique=22       range [0, 1521] median 539
+    CD4.T.prop                       float64      n_unique=22       range [0, 0.193] median 0.1084
+    CD8.T.cellnumber                 float64      n_unique=25       range [0, 2040] median 727
+    CD8.T.prop                       float64      n_unique=26       range [0, 0.2785] median 0.1323
+    NK.cellnumber                    float64      n_unique=11       range [0, 194] median 0
+    NK.prop                          float64      n_unique=11       range [0, 0.06884] median 0
+    Treg.cellnumber                  float64      n_unique=11       range [0, 633] median 0
+    Treg.prop                        float64      n_unique=12       range [0, 0.1266] median 0
+    B.cellnumber                     float64      n_unique=25       range [0, 2814] median 255
+    B.prop                           float64      n_unique=26       range [0, 0.3814] median 0.04852
+    Plasma.cellnumber                float64      n_unique=13       range [0, 302] median 49
+    Plasma.prop                      float64      n_unique=13       range [0, 0.02886] median 0.009142
+    CD8.T_CD4.T.cellnumber           float64      n_unique=30       range [0, 3561] median 1300
+    CD8.T_CD4.T.prop                 float64      n_unique=30       range [0, 0.3592] median 0.2423
+    CD8.T_NK.cellnumber              float64      n_unique=27       range [0, 2040] median 727
+    CD8.T_NK.prop                    float64      n_unique=29       range [0, 0.2785] median 0.133
+    CD8.T_CD4.T_NK.cellnumber        float64      n_unique=30       range [0, 3561] median 1329
+    CD8.T_CD4.T_NK.prop              float64      n_unique=30       range [0, 0.3602] median 0.2478
+    NKT.cellnumber                   float64      n_unique=30       range [0, 3561] median 1329
+    NKT.prop                         float64      n_unique=30       range [0, 0.3602] median 0.2478
+    Monocyte.cellnumber              float64      n_unique=12       range [0, 520] median 0
+    Monocyte.prop                    float64      n_unique=12       range [0, 0.07745] median 0
+    cDC.cellnumber                   float64      n_unique=13       range [0, 795] median 90
+    cDC.prop                         float64      n_unique=13       range [0, 0.07597] median 0.01731
+    pDC.cellnumber                   float64      n_unique=1        np.float64(0.0)
+    pDC.prop                         float64      n_unique=1        np.float64(0.0)
+    Macrophage.cellnumber            float64      n_unique=28       range [0, 1064] median 499
+    Macrophage.prop                  float64      n_unique=28       range [0, 0.3913] median 0.09513
+    Neutrophil.cellnumber            float64      n_unique=1        np.float64(0.0)
+    Neutrophil.prop                  float64      n_unique=1        np.float64(0.0)
+    Mast.cellnumber                  float64      n_unique=10       range [0, 199] median 0
+    Mast.prop                        float64      n_unique=10       range [0, 0.03196] median 0
+    Endothelial.cellnumber           float64      n_unique=29       range [0, 1376] median 219
+    Endothelial.prop                 float64      n_unique=30       range [0, 0.1821] median 0.06254
+    Fibroblast.cellnumber            float64      n_unique=27       range [0, 2057] median 223
+    Fibroblast.prop                  float64      n_unique=29       range [0, 0.3267] median 0.04074
+    Malign_Epi.cellnumber            float64      n_unique=29       range [54, 2418] median 375
+    Malign_Epi.prop                  float64      n_unique=30       range [0.01532, 0.6976] median 0.07448
+    Respond_Malign.cellnumber        float64      n_unique=29       range [50, 1724] median 270
+    Respond_Malign.prop              float64      n_unique=30       range [0.4554, 0.9926] median 0.7903
+
+  var: 1 columns
+    name                             object       n_unique=33538    'MIR1302-2HG', 'FAM138A', 'OR4F5', 'AL627309.1', 'AL627309.3', 'AL627309.2', 'AL627309.4', 'AL732372.1', ... (+33530 more)
+    var_names[:5] = ['MIR1302-2HG', 'FAM138A', 'OR4F5', 'AL627309.1', 'AL627309.3']
+    var_names unique: True
+
+  obsm: none
+
+  uns keys: none
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/20_samples/sce_all_samples_scVI.h5ad
+   2.3 GB on disk
+==============================================================================
+
+  shape: 66,476 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/20_samples/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/scSurvival-extend/scSurvival/datasets/car-T/CD8.h5ad
+   2.3 GB on disk
+==============================================================================
+
+  shape: 185,226 cells x 40,056 genes
+
+  X:
+    X dtype=float32  first 200 cells: min=0.2052 max=6.18 nnz=542574  all-integer=False
+    -> looks like: log-normalised (non-integer, small max) -- what scSurvival expects
+
+  layers: none
+
+  obs: 31 columns
+    S_score                          float64      n_unique=185196   range [-0.4252, 0.9237] median -0.07731
+    G2M_score                        float64      n_unique=185220   range [-0.381, 1.617] median -0.05489
+    cell_cycle_phase                 category     n_unique=3        'G1', 'G2M', 'S'
+    sample_id                        category     n_unique=59       'ac57', 'ac45', 'ac41', 'ac49', 'ac50', 'ac44', 'ac42', 'ac55', ... (+51 more)
+    cluster                          category     n_unique=13       'C00:CX3CR1+ effector', 'C07:Cycling', 'C03:Cycling', 'C06:Cycling', 'C01:Cycling', 'C04:Tissue resident memory', 'C11:S100+', 'C02:Memory', ... (+5 more)
+    CAR_expression                   float32      n_unique=73405    range [0, 6.205] median 1.057
+    CAR_status                       category     n_unique=2        '-', '+'
+    CRS max grade                    category     n_unique=6        'unknown', '2.0', '4.0', '3.0', '1.0', '0.0'
+    3mo PET/CT                       category     n_unique=5        'unknown', 'CR', 'PD', 'NE', 'PR'
+    ICANS group                      category     n_unique=3        'unknown', 'Grade 3-4', 'Grade 0-2'
+    prolonged cytopenia              category     n_unique=4        'unknown', 'No', 'BM involvement', 'Yes'
+    response3m                       category     n_unique=3        'unknown', 'R', 'NR'
+    donor_id                         category     n_unique=59       'ac57', 'ac45', 'ac41', 'ac49', 'ac50', 'ac44', 'ac42', 'ac55', ... (+51 more)
+    disease_ontology_term_id         category     n_unique=1        'MONDO:0015759'
+    tissue_ontology_term_id          category     n_unique=1        'CL:0000084'
+    assay_ontology_term_id           category     n_unique=1        'EFO:0011025'
+    suspension_type                  category     n_unique=1        'cell'
+    self_reported_ethnicity_ontology_term_id category     n_unique=4        'HANCESTRO:0005', 'HANCESTRO:0008', 'HANCESTRO:0568', 'unknown'
+    sex_ontology_term_id             category     n_unique=2        'PATO:0000383', 'PATO:0000384'
+    development_stage_ontology_term_id category     n_unique=7        'HsapDv:0000241', 'HsapDv:0000240', 'HsapDv:0000242', 'HsapDv:0000238', 'HsapDv:0000243', 'HsapDv:0000239', 'HsapDv:0000237'
+    cell_type_ontology_term_id       category     n_unique=1        'CL:0000625'
+    is_primary_data                  bool         n_unique=1        np.False_
+    tissue_type                      category     n_unique=1        'cell culture'
+    cell_type                        category     n_unique=1        'CD8-positive, alpha-beta T cell'
+    assay                            category     n_unique=1        "10x 5' v1"
+    disease                          category     n_unique=1        'B-cell non-Hodgkin lymphoma'
+    sex                              category     n_unique=2        'female', 'male'
+    tissue                           category     n_unique=1        'T cell'
+    self_reported_ethnicity          category     n_unique=4        'European', 'Asian', 'African American', 'unknown'
+    development_stage                category     n_unique=7        'seventh decade stage', 'sixth decade stage', 'eighth decade stage', 'fourth decade stage', 'ninth decade stage', 'fifth decade stage', 'third decade stage'
+    observation_joinid               object       n_unique=185226   'Ciy#Yn59|z', 'YKH8(@EK}O', 'p)Yf)UopsD', '%>Z2r5dP0r', 'a_01HlYI0(', 'j`RwYu&O86', 'HxH}rwOa2F', '?p+BS*s<3+', ... (+185218 more)
+
+  var: 10 columns
+    highly_variable                  bool         n_unique=2        np.False_, np.True_
+    means                            float64      n_unique=37045    range [0, 5.114] median 0.0003216
+    variances                        float64      n_unique=37045    range [0, 2.976] median 0.0002898
+    variances_norm                   float64      n_unique=37045    range [0, 5.95] median 0.9869
+    feature_is_filtered              bool         n_unique=1        np.False_
+    feature_name                     category     n_unique=39643    'DDX11L1', 'WASH7P', 'MIR1302-2HG', 'ENSG00000238009', 'ENSG00000239945', 'CICP27', 'ENSG00000268903', 'ENSG00000269981', ... (+39635 more)
+    feature_reference                category     n_unique=1        'NCBITaxon:9606'
+    feature_biotype                  category     n_unique=1        'gene'
+    feature_length                   category     n_unique=5163     632, 1351, 623, 629, 1319, 3812, 755, 284, ... (+5155 more)
+    feature_type                     category     n_unique=34       'transcribed_unprocessed_pseudogene', 'unprocessed_pseudogene', 'lncRNA', 'processed_pseudogene', 'transcribed_processed_pseudogene', 'snRNA', 'miRNA', 'protein_coding', ... (+26 more)
+    var_names[:5] = ['ENSG00000223972', 'ENSG00000227232', 'ENSG00000243485', 'ENSG00000238009', 'ENSG00000239945']
+    var_names unique: True
+
+  obsm: [('X_umap', (185226, 2))]
+
+  uns keys: ['CAR_status_colors', 'cell_cycle_phase_colors', 'citation', 'cluster_colors', 'organism', 'organism_ontology_term_id', 'response3m_colors', 'schema_reference', 'schema_version', 'title', 'umap']
+    CAR_status_colors: array (2,)
+    cell_cycle_phase_colors: array (3,)
+    citation = 'Publication: https://doi.org/10.1016/j.ccell.2023.08.015 Dataset Version: https://datasets.cellxgene.cziscience.com/529453e3-c3ab-48b3-95d0-300d202784f6.h5ad curated and distributed by CZ CELLxGENE Discover in Collection: https://cellxgene.cziscience.com/collections/d9a9760c-e43d-404d-86aa-447c9a1e9120'
+    cluster_colors: array (13,)
+    organism = 'Homo sapiens'
+    organism_ontology_term_id = 'NCBITaxon:9606'
+    response3m_colors: array (3,)
+    schema_reference = 'https://github.com/chanzuckerberg/single-cell-curation/blob/main/schema/6.0.0/schema.md'
+    schema_version = '6.0.0'
+    title = 'Single cell atlas of CD19 CAR T-cells (CD8+)'
+    umap: dict with keys ['params']
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/scSurvival-extend/scSurvival/datasets/car-T/CD4.h5ad
+   2.2 GB on disk
+==============================================================================
+
+  shape: 164,114 cells x 40,056 genes
+
+  X:
+    X dtype=float32  first 200 cells: min=0.1603 max=6.421 nnz=607083  all-integer=False
+    -> looks like: log-normalised (non-integer, small max) -- what scSurvival expects
+
+  layers: none
+
+  obs: 31 columns
+    S_score                          float64      n_unique=164111   range [-0.3888, 0.9585] median -0.1205
+    G2M_score                        float64      n_unique=164106   range [-0.2669, 1.454] median -0.01569
+    cell_cycle_phase                 category     n_unique=3        'G1', 'S', 'G2M'
+    sample_id                        category     n_unique=59       'ac57', 'ac45', 'ac41', 'ac49', 'ac50', 'ac44', 'ac42', 'ac55', ... (+51 more)
+    cluster                          category     n_unique=13       'C08:Cycling', 'C02:Cytotoxic', 'C03:Memory', 'C00:Effector', 'C09:Th2', 'C05:Cycling', 'C10:Th1', 'C06:Cycling', ... (+5 more)
+    CAR_expression                   float32      n_unique=87415    range [0, 6.489] median 1.693
+    CAR_status                       category     n_unique=2        '+', '-'
+    CRS max grade                    category     n_unique=6        'unknown', '2.0', '4.0', '3.0', '1.0', '0.0'
+    3mo PET/CT                       category     n_unique=5        'unknown', 'CR', 'PD', 'NE', 'PR'
+    ICANS group                      category     n_unique=3        'unknown', 'Grade 3-4', 'Grade 0-2'
+    prolonged cytopenia              category     n_unique=4        'unknown', 'No', 'BM involvement', 'Yes'
+    response3m                       category     n_unique=3        'unknown', 'R', 'NR'
+    donor_id                         category     n_unique=59       'ac57', 'ac45', 'ac41', 'ac49', 'ac50', 'ac44', 'ac42', 'ac55', ... (+51 more)
+    disease_ontology_term_id         category     n_unique=1        'MONDO:0015759'
+    tissue_ontology_term_id          category     n_unique=1        'CL:0000084'
+    assay_ontology_term_id           category     n_unique=1        'EFO:0011025'
+    suspension_type                  category     n_unique=1        'cell'
+    self_reported_ethnicity_ontology_term_id category     n_unique=4        'HANCESTRO:0005', 'HANCESTRO:0008', 'HANCESTRO:0568', 'unknown'
+    sex_ontology_term_id             category     n_unique=2        'PATO:0000383', 'PATO:0000384'
+    development_stage_ontology_term_id category     n_unique=7        'HsapDv:0000241', 'HsapDv:0000240', 'HsapDv:0000242', 'HsapDv:0000238', 'HsapDv:0000243', 'HsapDv:0000239', 'HsapDv:0000237'
+    cell_type_ontology_term_id       category     n_unique=1        'CL:0000624'
+    is_primary_data                  bool         n_unique=1        np.False_
+    tissue_type                      category     n_unique=1        'cell culture'
+    cell_type                        category     n_unique=1        'CD4-positive, alpha-beta T cell'
+    assay                            category     n_unique=1        "10x 5' v1"
+    disease                          category     n_unique=1        'B-cell non-Hodgkin lymphoma'
+    sex                              category     n_unique=2        'female', 'male'
+    tissue                           category     n_unique=1        'T cell'
+    self_reported_ethnicity          category     n_unique=4        'European', 'Asian', 'African American', 'unknown'
+    development_stage                category     n_unique=7        'seventh decade stage', 'sixth decade stage', 'eighth decade stage', 'fourth decade stage', 'ninth decade stage', 'fifth decade stage', 'third decade stage'
+    observation_joinid               object       n_unique=164114   '961V=-qbMR', ')lrBWQ9#Xb', '5mfe(a>`|(', 'aiFVG{7_nw', '<55z?nn@Q*', 'p@`HYj$>{l', 'ee@aP>iL8o', 'ndTdjtiURG', ... (+164106 more)
+
+  var: 10 columns
+    highly_variable                  bool         n_unique=2        np.False_, np.True_
+    means                            float64      n_unique=37268    range [0, 5.082] median 0.0003291
+    variances                        float64      n_unique=37269    range [0, 1.648] median 0.0002744
+    variances_norm                   float64      n_unique=37269    range [0, 3.797] median 0.983
+    feature_is_filtered              bool         n_unique=1        np.False_
+    feature_name                     category     n_unique=39643    'DDX11L1', 'WASH7P', 'MIR1302-2HG', 'ENSG00000238009', 'ENSG00000239945', 'CICP27', 'ENSG00000268903', 'ENSG00000269981', ... (+39635 more)
+    feature_reference                category     n_unique=1        'NCBITaxon:9606'
+    feature_biotype                  category     n_unique=1        'gene'
+    feature_length                   category     n_unique=5163     632, 1351, 623, 629, 1319, 3812, 755, 284, ... (+5155 more)
+    feature_type                     category     n_unique=34       'transcribed_unprocessed_pseudogene', 'unprocessed_pseudogene', 'lncRNA', 'processed_pseudogene', 'transcribed_processed_pseudogene', 'snRNA', 'miRNA', 'protein_coding', ... (+26 more)
+    var_names[:5] = ['ENSG00000223972', 'ENSG00000227232', 'ENSG00000243485', 'ENSG00000238009', 'ENSG00000239945']
+    var_names unique: True
+
+  obsm: [('X_umap', (164114, 2))]
+
+  uns keys: ['CAR_status_colors', 'cell_cycle_phase_colors', 'citation', 'cluster_colors', 'organism', 'organism_ontology_term_id', 'response3m_colors', 'schema_reference', 'schema_version', 'title', 'umap']
+    CAR_status_colors: array (2,)
+    cell_cycle_phase_colors: array (3,)
+    citation = 'Publication: https://doi.org/10.1016/j.ccell.2023.08.015 Dataset Version: https://datasets.cellxgene.cziscience.com/3487ff71-66c0-49e5-9e1c-ce8ef6302a61.h5ad curated and distributed by CZ CELLxGENE Discover in Collection: https://cellxgene.cziscience.com/collections/d9a9760c-e43d-404d-86aa-447c9a1e9120'
+    cluster_colors: array (13,)
+    organism = 'Homo sapiens'
+    organism_ontology_term_id = 'NCBITaxon:9606'
+    response3m_colors: array (3,)
+    schema_reference = 'https://github.com/chanzuckerberg/single-cell-curation/blob/main/schema/6.0.0/schema.md'
+    schema_version = '6.0.0'
+    title = 'Single cell atlas of CD19 CAR T-cells (CD4+)'
+    umap: dict with keys ['params']
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/10_samples.scvi/sce_all_samples_scVI.h5ad
+   2.0 GB on disk
+==============================================================================
+
+  shape: 44,326 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/10_samples.scvi/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/sce_all_samples.h5ad
+   1.9 GB on disk
+==============================================================================
+
+  shape: 97,045 cells x 33,538 genes
+
+  X:
+    X dtype=float64  first 200 cells: min=1 max=8087 nnz=227039  all-integer=True
+    -> looks like: RAW COUNTS (integer-valued, large max)
+
+  layers: none
+
+  obs: 45 columns
+    nCount_RNA                       float64      n_unique=17004    range [605, 4.03e+04] median 3052
+    nFeature_RNA                     int32        n_unique=4885     range [501, 5825] median 1418
+    celltype                         category     n_unique=19       'Stromal', 'CD4.T', 'B', 'NK', 'cDC', 'Endothelial', 'Monocyte', 'Malign.Epi', ... (+11 more)
+    MHC.Celltype                     category     n_unique=20       'Stromal', 'CD4.T', 'B', 'NK', 'cDC', 'Endothelial', 'Monocyte', 'Respond_Malign.Epi', ... (+12 more)
+    sample                           category     n_unique=20       'CRX030762', 'CRX030763', 'CRX030764', 'CRX030765', 'CRX030766', 'CRX030767', 'CRX030768', 'CRX030769', ... (+12 more)
+    CD4.T.cellnumber                 float64      n_unique=17       range [0, 1521] median 440
+    CD4.T.prop                       float64      n_unique=17       range [0, 0.1843] median 0.1084
+    CD8.T.cellnumber                 float64      n_unique=17       range [0, 2040] median 727
+    CD8.T.prop                       float64      n_unique=17       range [0, 0.2652] median 0.1323
+    NK.cellnumber                    float64      n_unique=9        range [0, 194] median 0
+    NK.prop                          float64      n_unique=9        range [0, 0.06884] median 0
+    Treg.cellnumber                  float64      n_unique=7        np.float64(0.0), np.float64(133.0), np.float64(194.0), np.float64(77.0), np.float64(78.0), np.float64(170.0), np.float64(336.0)
+    Treg.prop                        float64      n_unique=7        np.float64(0.0), np.float64(0.042356688), np.float64(0.061083123), np.float64(0.02657922), np.float64(0.042646255), np.float64(0.026996983), np.float64(0.051196099)
+    B.cellnumber                     float64      n_unique=20       range [0, 2814] median 265
+    B.prop                           float64      n_unique=20       range [0, 0.3814] median 0.04852
+    Plasma.cellnumber                float64      n_unique=10       range [0, 302] median 49
+    Plasma.prop                      float64      n_unique=10       range [0, 0.02886] median 0.009142
+    CD8.T_CD4.T.cellnumber           float64      n_unique=20       range [112, 3561] median 1300
+    CD8.T_CD4.T.prop                 float64      n_unique=20       range [0.0333, 0.3509] median 0.242
+    CD8.T_NK.cellnumber              float64      n_unique=20       range [0, 2040] median 727
+    CD8.T_NK.prop                    float64      n_unique=20       range [0, 0.2652] median 0.1323
+    CD8.T_CD4.T_NK.cellnumber        float64      n_unique=20       range [112, 3561] median 1329
+    CD8.T_CD4.T_NK.prop              float64      n_unique=20       range [0.0333, 0.3602] median 0.2807
+    NKT.cellnumber                   float64      n_unique=20       range [112, 3561] median 1329
+    NKT.prop                         float64      n_unique=20       range [0.0333, 0.3602] median 0.2807
+    Monocyte.cellnumber              float64      n_unique=11       range [0, 520] median 88
+    Monocyte.prop                    float64      n_unique=11       range [0, 0.07745] median 0.01489
+    cDC.cellnumber                   float64      n_unique=9        range [0, 795] median 0
+    cDC.prop                         float64      n_unique=9        range [0, 0.07597] median 0
+    pDC.cellnumber                   float64      n_unique=1        np.float64(0.0)
+    pDC.prop                         float64      n_unique=1        np.float64(0.0)
+    Macrophage.cellnumber            float64      n_unique=19       range [0, 1064] median 499
+    Macrophage.prop                  float64      n_unique=19       range [0, 0.1605] median 0.09513
+    Neutrophil.cellnumber            float64      n_unique=1        np.float64(0.0)
+    Neutrophil.prop                  float64      n_unique=1        np.float64(0.0)
+    Mast.cellnumber                  float64      n_unique=5        np.float64(0.0), np.float64(18.0), np.float64(199.0), np.float64(20.0), np.float64(59.0)
+    Mast.prop                        float64      n_unique=5        np.float64(0.0), np.float64(0.005667506), np.float64(0.03160235), np.float64(0.003805175), np.float64(0.005638379)
+    Endothelial.cellnumber           float64      n_unique=20       range [38, 1376] median 282
+    Endothelial.prop                 float64      n_unique=20       range [0.004917, 0.1821] median 0.07359
+    Fibroblast.cellnumber            float64      n_unique=18       range [0, 2057] median 223
+    Fibroblast.prop                  float64      n_unique=19       range [0, 0.3267] median 0.03902
+    Malign_Epi.cellnumber            float64      n_unique=20       range [54, 2418] median 469
+    Malign_Epi.prop                  float64      n_unique=20       range [0.01532, 0.6976] median 0.1016
+    Respond_Malign.cellnumber        float64      n_unique=20       range [50, 1640] median 346
+    Respond_Malign.prop              float64      n_unique=20       range [0.4554, 0.9479] median 0.7244
+
+  var: 1 columns
+    name                             object       n_unique=33538    'MIR1302-2HG', 'FAM138A', 'OR4F5', 'AL627309.1', 'AL627309.3', 'AL627309.2', 'AL627309.4', 'AL732372.1', ... (+33530 more)
+    var_names[:5] = ['MIR1302-2HG', 'FAM138A', 'OR4F5', 'AL627309.1', 'AL627309.3']
+    var_names unique: True
+
+  obsm: none
+
+  uns keys: none
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/10_samples.bak/sce_all_samples_scVI.h5ad
+   1.7 GB on disk
+==============================================================================
+
+  shape: 40,440 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/10_samples.bak/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Breast/results/NK_cell/cancer_cells_with_results.h5ad
+   1.7 GB on disk
+==============================================================================
+
+  shape: 32,894 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/Breast/results/NK_cell/cancer_cells_with_results.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/scSurvival-extend/scSurvival/examples/data/sc_cohort_adata.h5ad
+   1.5 GB on disk
+==============================================================================
+
+  shape: 100,000 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/scSurvival-extend/scSurvival/examples/data/sc_cohort_adata.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/10_samples/sce_all_samples_scVI.h5ad
+   1.3 GB on disk
+==============================================================================
+
+  shape: 40,440 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/datasets/PDAC_atlas/results/10_samples/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
+==============================================================================
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/results/10_samples/sce_all_samples_scVI.h5ad
+   1.3 GB on disk
+==============================================================================
+
+  shape: 40,440 cells x 2,000 genes
+
+  X:
+## /scratch/10119/ghzheng/Tumor_immunity_analysis/data/ImmuCA/code/results/10_samples/sce_all_samples_scVI.h5ad
+   FAILED:
+Traceback (most recent call last):
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 212, in main
+    inspect(f)
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 143, in inspect
+    for line in matrix_report(adata):
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/inspect_h5ad.py", line 93, in matrix_report
+    data = data[np.isfinite(data)]
+           ~~~~^^^^^^^^^^^^^^^^^^^
+TypeError: only integer scalar arrays can be converted to a scalar index
+
