@@ -150,6 +150,71 @@ def check_lognormalised(chunk) -> None:
     log(f"X check passed: non-integer, max {nz.max():.3g} -- log-normalised")
 
 
+def filter_genes(adata, args):
+    """Reproduce the published gene-universe filter.
+
+    scSurvival's package performs no gene filtering at all -- `note.md`'s
+    "1. feature filter" is an instruction to the caller, not code. The filtering
+    lives in the paper's Methods:
+
+        "only protein-coding genes were retained for all analyses performed in
+         this study"                                         (melanoma cohort)
+        "Only protein-coding genes were retained, and ribosomal genes (RPL and
+         RPS) and mitochondrial genes (MT-) were excluded"    (liver cohort)
+
+    Skipping it leaves HVG selection free to pick lncRNA, pseudogenes and MT
+    genes, which are highly variable for technical reasons -- ambient RNA, cell
+    stress -- rather than biological ones. On CD8.h5ad the unfiltered universe is
+    40,056 genes against the notebook's 16,996, so ~58% of the pool is non-coding.
+    """
+    names = (adata.var[args.gene_name_col].astype(str)
+             if args.gene_name_col and args.gene_name_col in adata.var
+             else pd.Series(adata.var_names.astype(str), index=adata.var_names))
+
+    keep = pd.Series(True, index=adata.var_names)
+    start = adata.n_vars
+
+    if args.protein_coding_csv:
+        table = pd.read_csv(args.protein_coding_csv, header=0, index_col=0)
+        # The notebook hardcodes .iloc[:, 1]; that is a property of one HGNC
+        # export, not of the format. Pick whichever column actually matches the
+        # data's gene names, and say which -- a wrong column silently filters
+        # almost everything away, which looks like a very aggressive filter
+        # rather than a bug.
+        overlaps = {c: int(names.isin(set(table[c].astype(str))).sum())
+                    for c in table.columns}
+        best = max(overlaps, key=overlaps.get)
+        ranked = sorted(overlaps.items(), key=lambda kv: -kv[1])[:4]
+        log(f"protein-coding CSV columns by overlap: {ranked}")
+        if overlaps[best] == 0:
+            raise SystemExit(
+                f"no column of {args.protein_coding_csv} matches "
+                f"var['{args.gene_name_col}']. Checked: {list(table.columns)}")
+        keep &= names.isin(set(table[best].astype(str))).values
+        log(f"protein-coding CSV (column '{best}'): "
+            f"{int(keep.sum())} of {start} genes kept")
+    elif args.biotype_col:
+        if args.biotype_col not in adata.var:
+            raise SystemExit(f"--biotype-col '{args.biotype_col}' not in var. "
+                             f"Available: {list(adata.var.columns)}")
+        keep &= (adata.var[args.biotype_col].astype(str) == args.biotype_value).values
+        log(f"biotype '{args.biotype_col}=={args.biotype_value}': "
+            f"{int(keep.sum())} of {start} genes kept")
+
+    if args.exclude_prefix:
+        prefixes = tuple(p.strip() for p in args.exclude_prefix.split(",") if p.strip())
+        before = int(keep.sum())
+        keep &= ~names.str.upper().str.startswith(tuple(p.upper() for p in prefixes)).values
+        log(f"excluded prefixes {prefixes}: dropped {before - int(keep.sum())} genes")
+
+    if int(keep.sum()) == 0:
+        raise SystemExit("gene filtering removed every gene; check the options.")
+    if int(keep.sum()) < args.n_hvg:
+        raise SystemExit(f"only {int(keep.sum())} genes survive filtering, fewer "
+                         f"than --n-hvg {args.n_hvg}.")
+    return adata[:, keep.values].copy()
+
+
 def build_labels(adata, sample_col, label_col, drop_missing=True):
     """One label per sample, with unusable levels dropped."""
     per_sample = adata.obs.groupby(sample_col, observed=True)[label_col].first()
@@ -203,6 +268,23 @@ def main(argv=None) -> int:
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--n-hvg", type=int, default=2000)
+    ap.add_argument("--hvg-flavor", default="seurat",
+                    choices=["seurat", "seurat_v3", "cell_ranger"],
+                    help="the notebooks use seurat_v3 on a counts layer; "
+                         "seurat (default here) works on log data")
+    ap.add_argument("--protein-coding-csv", type=Path,
+                    help="CSV of protein-coding gene symbols (the notebooks use "
+                         "gene_with_protein_product.csv); matched on --gene-name-col")
+    ap.add_argument("--biotype-col",
+                    help="var column holding a gene biotype, e.g. feature_type -- "
+                         "an alternative to --protein-coding-csv using the file's "
+                         "own annotation")
+    ap.add_argument("--biotype-value", default="protein_coding")
+    ap.add_argument("--exclude-prefix",
+                    help="comma-separated gene-name prefixes to drop, e.g. "
+                         "'MT-,RPL,RPS' as the paper does for the liver cohort")
+    ap.add_argument("--gene-name-col", default="feature_name",
+                    help="var column with gene symbols; falls back to var_names")
     ap.add_argument("--epochs", type=int, default=500)
     ap.add_argument("--pretrain-epochs", type=int, default=200)
     ap.add_argument("--num-heads", type=int, default=8)
@@ -291,6 +373,14 @@ def main(argv=None) -> int:
     adata = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, samples)))].copy()
     log(f"{adata.n_obs:,} cells x {adata.n_vars:,} genes in memory")
 
+    if args.protein_coding_csv or args.biotype_col or args.exclude_prefix:
+        adata = filter_genes(adata, args)
+        log(f"gene universe after filtering: {adata.n_vars:,}")
+    else:
+        log("WARNING: no gene filtering requested. The published protocol retains "
+            "protein-coding genes only; without it HVG selection draws from the "
+            "full universe including lncRNA, pseudogenes and MT genes.")
+
     from scSurvival_e import scSurvivalRun, PredictIndSample
 
     import inspect
@@ -317,7 +407,9 @@ def main(argv=None) -> int:
             ad_tr = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, train_s)))].copy()
             # HVGs from the training split only -- selecting on all cells first
             # leaks test-set variance structure into the feature set.
-            sc.pp.highly_variable_genes(ad_tr, n_top_genes=args.n_hvg, subset=False, flavor="seurat")
+            hvg_kw = {"layer": "counts"} if args.hvg_flavor == "seurat_v3" and "counts" in ad_tr.layers else {}
+            sc.pp.highly_variable_genes(ad_tr, n_top_genes=args.n_hvg,
+                                        subset=False, flavor=args.hvg_flavor, **hvg_kw)
             hvgs = ad_tr.var.index[ad_tr.var["highly_variable"]].tolist()
             ad_tr = ad_tr[:, hvgs].copy()
             ad_te = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, test_s)))][:, hvgs].copy()

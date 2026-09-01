@@ -157,9 +157,10 @@ than being an unconstrained by-product.
 `scSurvivalRun()`. They cannot be tuned or ablated without editing the source,
 and an ablation is exactly what a reviewer will ask for.
 
-Also present but undocumented: `sample_balance` and computed class weights
-(`pos_weight` for binary, `weight=` for multi-class). That matters here, because
-the CAR-T response labels are imbalanced.
+`sample_balance` and the class weights (`pos_weight` / `weight=`) are worth
+knowing about for the imbalanced CAR-T labels, but note they are **upstream
+features, not fork additions** -- verified by diff against
+`github.com/cliffren/scSurvival` (see 3f).
 
 **Architecture**, for reference (`scsurvival_module.py`): the active cell model is
 `scSurvivalCellModelVAE` (the `...AE` variant exists but is unused — line 145
@@ -307,6 +308,85 @@ One caveat: `benchmark.ipynb` imports `from scSurvival_beta import ...`, a third
 package name alongside `scSurvival` and `scSurvival_e`. **[unverified]** whether
 it still runs against the current `scSurvival_e` API unmodified.
 
+
+### 3f. Verified diff against upstream
+
+Everything above was read out of the fork alone. This section is a direct diff
+against `github.com/cliffren/scSurvival` @ `a76de0a` (2026-04-27), the published
+version. It supersedes any inference made earlier.
+
+**Scale of the divergence** (fork's `scSurvival_e/` vs upstream's `scSurvival/`):
+
+| file | upstream | fork | changed lines |
+|---|---:|---:|---:|
+| `scsurvival_core.py` | 38,775 B | 55,796 B | 606 |
+| `scsurvival.py` | 18,488 B | 26,723 B | 331 |
+| `loss_func.py` | 8,389 B | 18,172 B | 294 |
+| `scsurvival_module.py` | 8,199 B | 9,478 B | 39 |
+| `base_module.py` | 6,918 B | 6,918 B | **0** |
+| `utils.py` | 8,209 B | 8,209 B | **0** |
+
+The architectural primitives are **byte-identical**. Nothing about the VAE, the
+attention or the encoder changed.
+
+**What is genuinely new** (absent from upstream entirely):
+
+| feature | occurrences upstream / fork |
+|---|---|
+| `task_type` — the multi-task generalisation | 0 / 63 |
+| `validate_entropy` — entropy gates checkpointing | 0 / 3 |
+| `cosine_orthogonal_loss` | 0 / 2 |
+| `compute_consistency_loss` | 0 / 2 |
+| `accuracy`, `binary_auc`, `r2_score` metrics | 0 / 14 |
+
+**What was already upstream** — and must therefore *not* be described as part of
+the extension:
+
+| feature | note |
+|---|---|
+| attention-entropy **penalty** (`atten_entropy`, `entropy_threshold=0.7`) | upstream; only the *checkpoint gating* is new |
+| `lambdas=(0.01, 1.0)` | upstream default, unchanged |
+| `sample_balance` and class weights | **upstream**, not a fork addition |
+| `weight_decay=0.01`, `patience=100` | upstream defaults |
+| the `[-10, 10]` output clamp | upstream |
+
+**`fit()` signature diff** — the fork adds `y_time=None`, `y_event=None`,
+`y_label=None` (making the label arguments task-dependent) and
+`validate_entropy=True`. It removes nothing. It changes exactly one default:
+`validate_metric` from `'ccindex'` to `'auto'`, which resolves back to
+`'ccindex'` for a Cox task.
+
+**Consequence, and the reason the benchmark is sound:** because no shared default
+was altered, running the fork with
+
+```python
+lambda_ortho=0.0, lambda_consist=0.0, validate_entropy=False
+```
+
+reproduces upstream scSurvival's behaviour **exactly** on a Cox task. The `off`
+arm in `scripts/cv_compare.py` is therefore a faithful baseline, not an
+approximation -- for Cox. For classification there is no upstream equivalent, so
+that arm must be described as *"the fork without its three regularisers"* and
+never labelled "scSurvival".
+
+**The clamp, settled.** The upstream `HazrdModel.forward` is:
+
+```python
+hazard = self.hazard(h)
+hazard = torch.clamp(hazard, min=-10, max=10)
+```
+
+and the fork's is the same line, with a commented-out guard added above it:
+
+```python
+# if self.task_type == 'cox':
+hazard = torch.clamp(hazard, min=-10, max=10)
+# For classification and regression, no clamping needed (...)
+```
+
+So the intent to make it conditional is visible in the source, `FINAL_SUMMARY.md:49`
+reports it as done, and it was not done. Regression output is still confined to
+`[-10, 10]`.
 ---
 
 ## 4. ImmuCa
