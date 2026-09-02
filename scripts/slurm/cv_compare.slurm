@@ -27,10 +27,14 @@
 # `-p gh` rather than `gh-dev`: needs a GPU, ~40 min per task, past what a dev
 # queue is for. It does NOT need 12 hours.
 #-----------------------------------------------------------------------------
-set -euo pipefail
-
+# No `set -u` around the next two lines. TACC's ~/.bashrc reads
+# SHELL_STARTUP_DEBUG unguarded at line 20, and conda's init touches other
+# unset variables, so `set -u` kills the job before any of this script runs --
+# empty .out, one line in .err. Strictness is enabled afterwards instead.
 source /home1/10119/ghzheng/.bashrc
 conda activate "${SCSURV_ENV:-/scratch/10119/ghzheng/conda_envs/worldmodel_withconfidenceot}"
+
+set -eo pipefail
 
 repo=${SCSURV_REPO:-/scratch/10119/ghzheng/Tumor_immunity_analysis}
 pkg=${SCSURV_PKG:-$repo/data/scSurvival-extend/scSurvival}
