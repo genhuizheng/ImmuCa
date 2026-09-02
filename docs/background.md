@@ -772,8 +772,14 @@ The only outcome labels present anywhere are:
 | ImmuCa Ovarian `sce_all_samples_scVI.h5ad` | `ct_response` — resistant / refractory / sensitive | marginal — **217,341 of 258,372 cells missing** (~84%) |
 | ImmuCa Breast `NK_cell/cancer_cells_with_results.h5ad` | `response`, `timepoint`, `time_point` | **no** — present but 100% empty (`n_unique=0`) |
 
-**Therefore a head-to-head against the published scSurvival is not possible with
-internal data alone.** The published result is a C-index from Cox regression;
+**CORRECTED 2026-09-01:** survival *does* exist, as a side-car CSV rather than in
+any `obs` -- `examples/data/surv_info.csv`, 100 samples, 93 events, for
+`sc_cohort_adata.h5ad`. The label survey only reads `obs`, so it missed it; a
+`tree` of the data directory found it. A head-to-head **is** possible on that
+simulated cohort. See 11 for the result. The statement below holds only for
+the real cohorts.
+
+**A head-to-head on real internal data is still not possible.** The published result is a C-index from Cox regression;
 the only usable internal endpoint is binary classification, which the original
 scSurvival cannot perform. The two cannot be put on the same axis.
 
@@ -801,3 +807,123 @@ response columns, which are empty.
 Do **A** now — it is unblocked, and the lambda change it requires is needed for
 every other plan too. Start **B** in parallel, because it costs one download and
 is the only route to the comparison the request actually names.
+
+---
+
+## 11. First benchmark result — Cox head-to-head, 2026-09-01
+
+`results/cv_compare_cohort_pc.csv`, SLURM job 960597 task 2.
+
+**Setup.** `sc_cohort_adata.h5ad` (100 samples, 2,000 genes) with
+`examples/data/surv_info.csv` (time 1-100, **93 events / 7 censored**). Patient-
+level 5-fold CV, seed 42, 80 train / 20 test per fold, HVGs re-selected inside
+each fold on the training split. This is the **only genuine head-to-head on
+disk**: the task is Cox, and because the fork altered no shared default (3f),
+the `off` arm reproduces upstream scSurvival exactly.
+
+| arm | mean c-index | SD | runtime |
+|---|---|---|---|
+| `on` (extension) | 0.9546 | 0.0077 | 222 s |
+| `off` (= upstream scSurvival) | **0.9604** | 0.0125 | 139 s |
+
+Paired, since both arms share folds:
+
+```text
+fold      on       off      on-off
+   0    0.9492   0.9626    -0.0134
+   1    0.9655   0.9454    +0.0201
+   2    0.9595   0.9798    -0.0202
+   3    0.9475   0.9568    -0.0093
+   4    0.9510   0.9575    -0.0065
+
+paired difference  -0.0059   95% CI [-0.0250, +0.0133]
+paired t           t = -0.850, p = 0.443
+Wilcoxon                        p = 0.438
+runtime ratio      1.60x slower with the extension
+```
+
+**Conclusion: no detectable c-index benefit, at 1.6x the compute.** The sign
+flips across folds, and the confidence interval is centred on zero.
+
+### Two caveats that must travel with this number
+
+**Ceiling.** Both arms sit at 0.95-0.96 with a best fold of 0.98 on simulated
+data with a strong planted signal. There is almost no headroom, so this design
+cannot demonstrate an improvement even if one exists. Do not report the null as
+"the terms do not work".
+
+**Wrong instrument.** The orthogonal-attention and cell-patient consistency
+terms are *attention-shaping*: they target which cells are identified, not
+patient discrimination. C-index cannot see that, and `sc_cohort_adata` carries
+no per-cell ground truth (`surv_info.csv` gives `num.good.cells` /
+`num.bad.cells` per **sample** only). The claim the terms actually make is still
+untested.
+
+**One positive control passed:** the `off` arm reaching 0.960 on the tutorial's
+own data is upstream scSurvival reproduced, which confirms the harness is sound.
+
+### What would actually test the mechanism
+
+- **Attention concentration per arm.** Entropy is already computed during
+  training. If the three terms do not measurably sharpen attention, they are
+  failing at their own objective before c-index is even relevant.
+- **Hazard vs bad-cell fraction.** `num.bad.cells / (good + bad)` is a
+  per-sample ground truth. If the `on` arm's hazards track it more closely,
+  that is the interpretability gain the terms exist for -- and it would not
+  appear in c-index at all.
+
+### Still running
+
+Job 960657, array 0-1: CAR-T CD4 and CD8 classification ablations, with the
+protein-coding filter. Expect these to be **less** conclusive than the Cox run:
+7 test samples per fold against 20 here, and no upstream baseline exists for
+classification, so `off` is "the fork without its three regularisers" rather
+than scSurvival.
+
+### 11b. CAR-T classification ablations — job 960657, 2026-09-01
+
+`results/cv_compare_cd4_pc.csv`, `cv_compare_cd8_pc.csv`. 35 donors (20 NR /
+15 R), protein-coding filter applied, patient-level 5-fold CV, 7 test donors per
+fold, entropy_threshold 0.7 (CD4) / 0.8 (CD8).
+
+| dataset | `on` AUROC | `off` AUROC | paired on-off |
+|---|---|---|---|
+| CD4 | 0.317 +/- 0.297 | 0.475 +/- 0.181 | -0.158 (p = 0.095) |
+| CD8 | 0.333 +/- 0.302 | 0.383 +/- 0.249 | -0.050 (p = 0.374) |
+
+Across all 20 fold-arm results: **mean AUROC 0.377, 12/20 below chance.** No arm
+differs significantly from 0.5 (all p > 0.24); 95% CIs span roughly [0, 0.7].
+
+**The task does not predict held-out donors.** Below 0.5 is *not*
+anti-predictive at this sample size -- it is noise. The correct statement is
+"indistinguishable from chance".
+
+Compare the notebooks, which report patient predictions of `0.999261` and
+`0.000045` -- near-perfect separation *in sample*. That gap is the overfitting
+diagnosed in 3d, now measured. Any DEG list computed downstream of "predicted
+R vs NR" inherits it.
+
+**The ablation question is therefore moot on this data.** Whether a regulariser
+helps cannot be determined for a model that is not predicting. Note also that on
+CD8 **4 of 5 folds produced byte-identical AUROC across arms** -- the three
+terms changed the held-out ranking in one fold only, while costing up to 4x the
+runtime.
+
+### What this does NOT establish
+
+Alternatives consistent with the same numbers:
+
+- 28 training donors is very thin for a VAE plus 8-head attention over 2,000 genes;
+- the infusion product may genuinely not predict 3-month response -- a real
+  biological finding, publishable as a negative result;
+- hyperparameters were selected in sample, so they are tuned to the wrong target;
+- the protein-coding filter changed the gene universe relative to the notebooks.
+
+### Known weakness in how this was measured
+
+Averaging per-fold AUROC at n=7 is a poor estimator: attainable values step by
+0.042-0.083, so one donor swapping rank moves a fold by up to 0.083. The right
+estimator pools **out-of-fold predictions across all 35 donors** into a single
+AUROC. `scripts/cv_compare.py` does not currently save per-sample predictions,
+so that cannot be computed from these files -- a gap to fix before quoting any
+of these numbers.

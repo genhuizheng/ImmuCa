@@ -239,6 +239,43 @@ def build_labels(adata, sample_col, label_col, drop_missing=True):
     return y, mapping
 
 
+def attention_stats(ad) -> dict:
+    """How concentrated is this sample's attention?
+
+    The orthogonal-attention and cell-patient consistency losses exist to shape
+    attention, not to improve discrimination. If they work, attention should be
+    measurably sharper -- lower normalised entropy, higher top-k mass -- and that
+    is visible here even when AUROC or c-index shows nothing.
+
+    Normalised entropy is the same quantity the training loop penalises
+    (`scsurvival_core.py:573`), so it is directly comparable to the
+    `entropy_threshold` the model was trained against.
+    """
+    out = {}
+    if ad is None or "attention" not in getattr(ad, "obs", {}):
+        return out
+    a = np.asarray(ad.obs["attention"], dtype=float)
+    a = a[np.isfinite(a)]
+    n = a.size
+    if n == 0:
+        return out
+    out["n_cells"] = int(n)
+    out["att_max"] = float(a.max())
+    out["att_mean"] = float(a.mean())
+    # Renormalise to a distribution before taking entropy: obs['attention'] is
+    # rescaled somewhere in the package (values reach 0.5+, which a softmax over
+    # thousands of cells could not), so the raw values are not a simplex.
+    tot = a.sum()
+    if tot > 0 and n > 1:
+        p = a / tot
+        nz = p[p > 0]
+        out["att_entropy"] = float(-(nz * np.log(nz)).sum() / np.log(n))
+        k = max(1, int(round(0.01 * n)))
+        out["att_top1pct_mass"] = float(np.sort(a)[::-1][:k].sum() / tot)
+    out["att_frac_above_0.5"] = float((a >= 0.5).mean())
+    return out
+
+
 def score(task, y_true, y_pred):
     """Test-fold metric. AUROC for binary, c-index for Cox."""
     if task == "classification":
@@ -394,7 +431,7 @@ def main(argv=None) -> int:
         )
     log(f"patch present: lambda_ortho default {params['lambda_ortho'].default}")
 
-    rows = []
+    rows, pred_rows = [], []
     args.results_root.mkdir(parents=True, exist_ok=True)
 
     for arm in args.arms:
@@ -440,8 +477,26 @@ def main(argv=None) -> int:
             preds = {}
             for s in test_s:
                 ad_s = ad_te[ad_te.obs[args.sample_col].astype(str) == str(s)].copy()
-                _, p = PredictIndSample(ad_s, adata=ad_tr, model=model)
+                ad_pred, p = PredictIndSample(ad_s, adata=ad_tr, model=model)
                 preds[s] = float(np.ravel(p)[0])
+
+                # Per-sample out-of-fold record. Two reasons this matters:
+                #
+                # 1. Pooling 35 predictions into ONE metric beats averaging five
+                #    7-donor AUROCs, where attainable values step by 0.04-0.08 and
+                #    a single donor swapping rank moves a fold by up to 0.083.
+                # 2. The attention statistics are the only direct test of what the
+                #    orthogonal-head and consistency losses actually target. They
+                #    shape *which cells* are attended to; c-index and AUROC cannot
+                #    see that, so a null there says nothing about the mechanism.
+                rec = dict(arm=arm, fold=i, sample=str(s), pred=preds[s])
+                if args.task == "classification":
+                    rec["y_true"] = int(y.loc[s])
+                else:
+                    rec["time"] = float(surv.loc[s, "time"])
+                    rec["status"] = int(surv.loc[s, "status"])
+                rec.update(attention_stats(ad_pred))
+                pred_rows.append(rec)
 
             if args.task == "classification":
                 m = score("classification", y.loc[test_s].values,
@@ -476,11 +531,62 @@ def main(argv=None) -> int:
               f"{len(samples)} samples over {args.folds} folds, one sample moving "
               "between folds can exceed this difference.")
 
+    # ---- pooled out-of-fold estimate --------------------------------------
+    # Every sample is held out exactly once, so pooling gives ONE metric over
+    # all of them. That is a far better estimator than the mean of per-fold
+    # values: with 7 test samples an AUROC can only take steps of 0.04-0.08, so
+    # per-fold noise dominates. Report both -- if they disagree, the per-fold
+    # mean is the one to distrust.
+    pdf = pd.DataFrame(pred_rows)
+    if not pdf.empty:
+        print("\n" + "=" * 60)
+        print(f"POOLED out-of-fold {metric} over all {len(samples)} samples")
+        print("=" * 60)
+        pooled = {}
+        for arm, g in pdf.groupby("arm"):
+            if args.task == "classification":
+                mm = score("classification", g["y_true"].values, g["pred"].values)
+            else:
+                mm = score("cox", (g["time"].values, g["status"].values),
+                           g["pred"].values)
+            pooled[arm] = mm[metric]
+            print(f"  {arm:<4} " + "  ".join(f"{k}={v:.4f}" for k, v in mm.items())
+                  + f"   (n={len(g)})")
+        if {"on", "off"} <= set(pooled):
+            print(f"\n  pooled extension effect: "
+                  f"{pooled['on'] - pooled['off']:+.4f} {metric}")
+
+        # ---- did the three terms actually sharpen attention? --------------
+        att = [c for c in pdf.columns if c.startswith("att_") or c == "n_cells"]
+        if att and pdf["arm"].nunique() > 1:
+            print("\n" + "=" * 60)
+            print("ATTENTION on held-out samples -- the mechanism the ortho and")
+            print("consistency losses target. A null in the metric above says")
+            print("nothing about this; a null HERE says the terms are inert.")
+            print("=" * 60)
+            print(pdf.groupby("arm")[att].mean().to_string(float_format="%.4f"))
+            if {"on", "off"} <= set(pdf["arm"].unique()) and "att_entropy" in pdf:
+                from scipy import stats as _st
+                wide = pdf.pivot_table(index="sample", columns="arm",
+                                       values="att_entropy")
+                wide = wide.dropna()
+                if len(wide) > 2:
+                    d = wide["on"] - wide["off"]
+                    t = _st.ttest_rel(wide["on"], wide["off"])
+                    print(f"\n  paired att_entropy on-off: {d.mean():+.4f}  "
+                          f"p={t.pvalue:.4f}  (n={len(wide)} samples)")
+                    print("  negative = the extension concentrated attention, "
+                          "as intended")
+
     out = args.results_root / f"cv_compare_{args.tag}.csv"
     df.to_csv(out, index=False)
+    if not pdf.empty:
+        pout = args.results_root / f"cv_compare_{args.tag}_predictions.csv"
+        pdf.to_csv(pout, index=False)
+        print(f"\nwrote {pout}")
     (args.results_root / f"cv_compare_{args.tag}_config.json").write_text(
         json.dumps({k: str(v) for k, v in vars(args).items()}, indent=2))
-    print(f"\nwrote {out}")
+    print(f"wrote {out}")
     return 0
 
 
