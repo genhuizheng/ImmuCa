@@ -927,3 +927,89 @@ estimator pools **out-of-fold predictions across all 35 donors** into a single
 AUROC. `scripts/cv_compare.py` does not currently save per-sample predictions,
 so that cannot be computed from these files -- a gap to fix before quoting any
 of these numbers.
+
+### 11c. How much signal could there be? An upper bound, not just a null
+
+A p-value says "we could not detect an effect", which invites "your n was too
+small". A calibration says what the data actually exclude. Simulating 35 donors
+(20 NR / 15 R), 5 folds of 7, at a range of true effect sizes:
+
+| true AUROC | simulated per-fold mean | P(observe <= 0.377) |
+|---|---|---|
+| **0.50** (no signal) | 0.501 +/- 0.115 | **14.6%** |
+| 0.556 | 0.560 +/- 0.111 | 5.0% |
+| 0.611 | 0.614 +/- 0.112 | 1.9% |
+| 0.651 | 0.649 +/- 0.110 | 1.1% |
+| 0.714 | 0.716 +/- 0.102 | 0.3% |
+| 0.760 | 0.760 +/- 0.094 | ~0% |
+
+**The observed 0.377 is fully consistent with no signal, and excludes a true
+AUROC above roughly 0.56 at the 5% level.**
+
+That is the defensible statement: not "we failed to detect", but "the data bound
+the effect below ~0.56". A model that at best reaches 0.56 out of sample does not
+support a downstream DEG list.
+
+*Caveat on this calculation:* 0.377 is the mean of 20 fold-arm values, compared
+against the simulated distribution of a single 5-fold mean. The four
+arm-by-dataset estimates (0.317, 0.475, 0.333, 0.383) are **not independent** --
+CD4 and CD8 use the same 35 donors, and the arms share folds -- so the effective
+n is between 1 and 4 and the bound is approximate. It holds per estimate as well:
+CD8 `off` at 0.383 alone gives the same ~5% threshold at true AUROC 0.556.
+
+*Also corrected:* pooling out-of-fold predictions instead of averaging per-fold
+AUROCs improves the estimator by only **1.15x** in SD, not "substantially" as
+first claimed. Both are limited by n=35, not by the folding. Pooling is still
+the better estimator and is now implemented, but it will not rescue this.
+
+### 11d. The mechanism test — job 962029, 2026-09-02
+
+This is the run that separates "the terms do nothing" from "the terms do
+something harmful". **It is the latter.**
+
+**The three terms measurably concentrate attention, as designed.**
+
+| dataset | `off` entropy | `on` entropy | paired diff | p | top-1% mass |
+|---|---|---|---|---|---|
+| CD4 | 0.9891 | 0.9483 | **-0.0409** | <0.0001 | 0.016 -> 0.033 |
+| CD8 | 0.9849 | 0.9789 | -0.0059 | 0.068 | 0.018 -> 0.020 |
+| cohort | 0.9330 | 0.8529 | **-0.0801** | <0.0001 | 0.034 -> 0.048 |
+
+`att_max` rises to ~0.98 everywhere and the fraction of cells above 0.5
+collapses (CD4 0.81 -> 0.30). So the orthogonal-head and consistency losses are
+**not inert** -- that hypothesis is excluded.
+
+**And on CAR-T the sharpening actively hurts.**
+
+| dataset | `off` | `on` | effect |
+|---|---|---|---|
+| CD4 pooled AUROC | 0.4850 | 0.3133 | **-0.1717** |
+| CD8 pooled AUROC | 0.4683 | 0.3450 | **-0.1233** |
+| cohort per-fold c-index | 0.9604 | 0.9546 | -0.0059 |
+
+Mechanistically consistent: concentrating attention over **28 training donors**
+commits the model to a small cell set that separates the training data and does
+not transfer. The damage is largest where attention sharpened most -- CD4 has
+both the biggest entropy drop and the biggest AUROC loss. This is a regulariser
+that increases effective overfitting.
+
+### A defect in this script, found and fixed
+
+The first version of the pooled estimator reported a cohort c-index of **0.893**
+against a per-fold **0.960**. That gap was an artefact of my own code, not a
+result: c-index is a *global* ranking, but the five folds are five different
+models with their own hazard scales, so pooling raw hazards lets fold membership
+dominate the order.
+
+Demonstrated on synthetic data with a deliberate per-fold offset:
+
+```text
+per-fold mean c-index         0.9428
+pooled on RAW hazards         0.6192   <- artefact
+pooled on within-fold RANKS   0.8803   <- fixed
+```
+
+`cv_compare.py` now rank-normalises within each fold before pooling. Bounded
+sigmoid outputs were barely affected (classification pooled 0.485 vs per-fold
+0.475), so **the CAR-T pooled numbers above stand**; the cohort figure to quote
+is the per-fold 0.960 / 0.955, not 0.893.

@@ -542,13 +542,25 @@ def main(argv=None) -> int:
         print("\n" + "=" * 60)
         print(f"POOLED out-of-fold {metric} over all {len(samples)} samples")
         print("=" * 60)
+        # Rank-normalise predictions WITHIN each fold before pooling.
+        #
+        # Each fold is a different model with its own output scale. c-index is a
+        # global ranking, so pooling raw hazards lets fold membership dominate
+        # the order -- measured on sc_cohort_adata, that dragged the pooled
+        # c-index to 0.893 against a per-fold 0.960, entirely as an artefact.
+        # Sigmoid outputs are bounded so classification barely moved (0.485 vs
+        # 0.475), but the fix is correct for both.
+        pdf = pdf.copy()
+        pdf["pred_ranked"] = (pdf.groupby(["arm", "fold"])["pred"]
+                                 .rank(pct=True))
         pooled = {}
         for arm, g in pdf.groupby("arm"):
+            col = "pred_ranked"
             if args.task == "classification":
-                mm = score("classification", g["y_true"].values, g["pred"].values)
+                mm = score("classification", g["y_true"].values, g[col].values)
             else:
                 mm = score("cox", (g["time"].values, g["status"].values),
-                           g["pred"].values)
+                           g[col].values)
             pooled[arm] = mm[metric]
             print(f"  {arm:<4} " + "  ".join(f"{k}={v:.4f}" for k, v in mm.items())
                   + f"   (n={len(g)})")
