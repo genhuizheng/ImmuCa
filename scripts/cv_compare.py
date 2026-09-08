@@ -394,6 +394,16 @@ def main(argv=None) -> int:
     ap.add_argument("--target-col",
                     help="obs column with a continuous sample-level target "
                          "(regression), e.g. 'CD8T_CD4T_NK/NKT.prop'")
+    ap.add_argument("--subset-col",
+                    help="restrict to samples whose obs[SUBSET_COL] is in "
+                         "--subset-values. For the prostate atlas, 'Group': the "
+                         "N and BPH samples have 3-5x lower infiltration than "
+                         "any malignant group, so including them lets a model "
+                         "score by recognising benign tissue instead of by "
+                         "immune biology.")
+    ap.add_argument("--subset-values",
+                    help="comma-separated values to keep, e.g. "
+                         "'Pri,CRPC,mLN,ICC,LN' for malignant-only")
     ap.add_argument("--group-col",
                     help="obs column to split folds on, when it differs from the "
                          "bag. ImmuCa needs --sample-col SampleID --group-col "
@@ -474,6 +484,31 @@ def main(argv=None) -> int:
     check_lognormalised(peek_layer(args.adata, args.layer) if args.layer
                         else peek_x(args.adata),
                         fatal=not args.renormalise)
+
+    # ---- optional subset, applied before targets or folds are built --------
+    if args.subset_col:
+        if not args.subset_values:
+            raise SystemExit("--subset-col requires --subset-values")
+        if args.subset_col not in obs:
+            raise SystemExit(f"--subset-col '{args.subset_col}' not in obs. "
+                             f"Available: {list(obs.columns)[:30]}")
+        keep = {v.strip() for v in args.subset_values.split(",") if v.strip()}
+        have = set(obs[args.subset_col].astype(str).unique())
+        missing = keep - have
+        if missing:
+            raise SystemExit(f"--subset-values not present in "
+                             f"'{args.subset_col}': {sorted(missing)}. "
+                             f"Available: {sorted(have)}")
+        before_cells, before_samples = len(obs), obs[args.sample_col].nunique()
+        obs = obs[obs[args.subset_col].astype(str).isin(keep)].copy()
+        log(f"subset {args.subset_col} in {sorted(keep)}: "
+            f"{obs[args.sample_col].nunique()} of {before_samples} samples, "
+            f"{len(obs):,} of {before_cells:,} cells")
+        if obs.empty:
+            raise SystemExit("the subset is empty")
+        # No separate cell mask is needed: targets and folds are built from this
+        # obs, and the matrix is later subset to `samples`, which now excludes
+        # the dropped groups.
 
     class _ObsOnly:  # build_labels only touches .obs
         def __init__(self, obs): self.obs = obs
