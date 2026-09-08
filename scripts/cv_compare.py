@@ -195,7 +195,14 @@ def build_targets(obs, sample_col, target_col):
     return y
 
 
-def check_lognormalised(chunk) -> None:
+def _reject(msg: str, fatal: bool) -> None:
+    """Abort, or just warn when the caller is about to fix the problem itself."""
+    if fatal:
+        raise SystemExit(msg)
+    log("NOTE: " + " ".join(msg.split()))
+
+
+def check_lognormalised(chunk, fatal: bool = True) -> None:
     """Refuse raw counts. scSurvival trains on them without complaint.
 
     This is the failure mode that produces a plausible wrong answer rather than
@@ -206,19 +213,17 @@ def check_lognormalised(chunk) -> None:
     vals = np.asarray(chunk.data if sparse.issparse(chunk) else chunk).ravel()
     nz = vals[np.isfinite(vals) & (vals != 0)]
     if nz.size == 0:
-        raise SystemExit("X appears to be all zero in the first rows.")
+        _reject("X appears to be all zero in the first rows.", fatal); return
     if nz.min() < 0:
-        raise SystemExit(
+        _reject(
             f"X has negative values (min {nz.min():.3g}) -- this looks scaled or "
             "latent, not log-normalised. Use layers['scvi'] or re-derive from "
-            "layers['counts']."
-        )
+            "layers['counts'].", fatal); return
     if np.allclose(nz, np.rint(nz)) and nz.max() > 30:
-        raise SystemExit(
+        _reject(
             f"X looks like RAW COUNTS (integer-valued, max {nz.max():.0f}). "
             "scSurvival needs log-normalised input and will NOT error on counts "
-            "-- it will just train on the wrong scale. Normalise first."
-        )
+            "-- it will just train on the wrong scale. Normalise first.", fatal); return
     log(f"X check passed: non-integer, max {nz.max():.3g} -- log-normalised")
 
 
@@ -463,8 +468,12 @@ def main(argv=None) -> int:
     if args.sample_col not in obs:
         raise SystemExit(f"'{args.sample_col}' not in obs. Available: "
                          f"{list(obs.columns)[:30]}")
+    # With --renormalise the matrix is *expected* to be raw counts at this
+    # point, so the early check is informational; the binding check happens
+    # after the matrix is loaded and normalised.
     check_lognormalised(peek_layer(args.adata, args.layer) if args.layer
-                        else peek_x(args.adata))
+                        else peek_x(args.adata),
+                        fatal=not args.renormalise)
 
     class _ObsOnly:  # build_labels only touches .obs
         def __init__(self, obs): self.obs = obs
@@ -564,6 +573,10 @@ def main(argv=None) -> int:
                               renormalise=args.renormalise)
     adata = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, samples)))].copy()
     log(f"{adata.n_obs:,} cells x {adata.n_vars:,} genes in memory")
+    if args.renormalise:
+        # Now it must hold: this is what actually reaches the model.
+        n = min(200, adata.n_obs)
+        check_lognormalised(adata.X[:n], fatal=True)
 
     if args.protein_coding_csv or args.biotype_col or args.exclude_prefix:
         adata = filter_genes(adata, args)
