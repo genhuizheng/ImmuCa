@@ -106,21 +106,93 @@ def peek_x(path, n=200):
         return sparse_dataset(x)[: n]
 
 
-def read_adata_no_raw(path):
-    """X, obs and var -- deliberately skipping /raw.
+def read_adata_no_raw(path, layer=None, renormalise=False):
+    """X (or a named layer), obs and var -- deliberately skipping /raw.
 
-    `.raw` holds the pre-filter counts and is never used here: preprocessing is
-    the caller's job and HVG selection happens per fold on X. Reading it costs
-    several GB and buys nothing.
+    `layer` exists for the ImmuCa result files, whose `X` is z-scored
+    (min ~ -4.8) and therefore invalid for scSurvival. Those files carry
+    `layers['counts']` (raw) and `layers['scvi']` (scVI-decoded), either of which
+    is usable -- counts with `renormalise=True`, scvi as-is.
     """
     import h5py
     from anndata import AnnData
 
     with h5py.File(path, "r") as f:
-        X = _read_elem(f["X"])
         obs = _read_elem(f["obs"])
         var = _read_elem(f["var"])
-    return AnnData(X=X, obs=obs, var=var)
+        if layer:
+            if "layers" not in f or layer not in f["layers"]:
+                have = list(f["layers"]) if "layers" in f else []
+                raise SystemExit(f"--layer '{layer}' not in {path}. Available: {have}")
+            X = _read_elem(f["layers"][layer])
+            log(f"read layers['{layer}'] instead of X")
+        else:
+            X = _read_elem(f["X"])
+    ad = AnnData(X=X, obs=obs, var=var)
+
+    if renormalise:
+        import scanpy as sc
+        from scipy import sparse
+        vals = ad.X.data if sparse.issparse(ad.X) else np.asarray(ad.X).ravel()
+        nz = vals[np.isfinite(vals) & (vals != 0)]
+        if nz.size and np.allclose(nz, np.rint(nz)):
+            sc.pp.normalize_total(ad, target_sum=1e4)
+            sc.pp.log1p(ad)
+            log("renormalised: normalize_total(1e4) + log1p")
+        else:
+            log("--renormalise requested but the matrix is not integer-valued; "
+                "left unchanged")
+    return ad
+
+
+def peek_layer(path, layer, n=200):
+    """First n rows of a named layer, for the scale check."""
+    import h5py
+
+    with h5py.File(path, "r") as f:
+        if "layers" not in f or layer not in f["layers"]:
+            have = list(f["layers"]) if "layers" in f else []
+            raise SystemExit(f"--layer '{layer}' not in {path}. Available: {have}")
+        x = f["layers"][layer]
+        if isinstance(x, h5py.Dataset):
+            return np.asarray(x[: min(n, x.shape[0])])
+        try:
+            from anndata.io import sparse_dataset
+        except ImportError:
+            from anndata.experimental import sparse_dataset
+        return sparse_dataset(x)[:n]
+
+
+def build_targets(obs, sample_col, target_col):
+    """One continuous value per sample, for regression.
+
+    ImmuCa's immune-infiltration proportions are the motivating case:
+    `CD8T_CD4T_NK/NKT.prop` is computed from the *immune* cells while the model
+    sees only *cancer* cells, so predictor and target come from disjoint cell
+    sets. That is the analysis, not a leak.
+
+    The value must be constant within each sample; a per-cell column averaged
+    into a sample-level target would be a different quantity.
+    """
+    g = obs.groupby(sample_col, observed=True)[target_col]
+    nun = g.nunique(dropna=True)
+    if (nun > 1).any():
+        bad = nun[nun > 1]
+        raise SystemExit(
+            f"'{target_col}' varies within {len(bad)} sample(s), so it is not a "
+            f"sample-level target (e.g. {list(bad.index[:3])}). Did you mean a "
+            "different --sample-col?")
+    y = pd.to_numeric(g.first(), errors="coerce").dropna()
+    if y.nunique() < 5:
+        raise SystemExit(f"'{target_col}' has only {y.nunique()} distinct values "
+                         "across samples; too few for regression.")
+    log(f"target '{target_col}': {len(y)} samples, range "
+        f"[{y.min():.4g}, {y.max():.4g}], median {y.median():.4g}")
+    if y.min() < -10 or y.max() > 10:
+        log("WARNING: target lies outside [-10, 10]. HazrdModel clamps its output "
+            "to that range (scsurvival_module.py:209), so values beyond it are "
+            "UNREACHABLE. Standardise the target first.")
+    return y
 
 
 def check_lognormalised(chunk) -> None:
@@ -277,7 +349,24 @@ def attention_stats(ad) -> dict:
 
 
 def score(task, y_true, y_pred):
-    """Test-fold metric. AUROC for binary, c-index for Cox."""
+    """Test-fold metric. AUROC for binary, c-index for Cox, R^2 + rho for regression."""
+    if task == "regression":
+        from scipy import stats
+        from sklearn.metrics import r2_score, mean_absolute_error
+        yt, yp = np.asarray(y_true, float), np.asarray(y_pred, float)
+        out = {"r2": float(r2_score(yt, yp)),
+               "mae": float(mean_absolute_error(yt, yp))}
+        # Spearman as well as R^2: ImmuCa's own downstream step correlates
+        # against infiltration with Spearman, and rank agreement survives a
+        # miscalibrated scale where R^2 does not.
+        # A collapsed prediction (the model output the mean for every sample) is
+        # a real and informative failure mode here, so report nan rather than
+        # letting scipy warn: Spearman is undefined on a constant input.
+        if len(yt) > 2 and np.ptp(yp) > 0 and np.ptp(yt) > 0:
+            out["spearman"] = float(stats.spearmanr(yt, yp).statistic)
+        else:
+            out["spearman"] = float("nan")
+        return out
     if task == "classification":
         from sklearn.metrics import roc_auc_score, accuracy_score
         if len(np.unique(y_true)) < 2:
@@ -294,8 +383,24 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--adata", type=Path, required=True, help="log-normalised .h5ad")
     ap.add_argument("--sample-col", required=True, help="obs column holding the patient/sample id")
-    ap.add_argument("--task", choices=["classification", "cox"], default="classification")
+    ap.add_argument("--task", choices=["classification", "cox", "regression"],
+                    default="classification")
     ap.add_argument("--label-col", help="obs column with the binary label (classification)")
+    ap.add_argument("--target-col",
+                    help="obs column with a continuous sample-level target "
+                         "(regression), e.g. 'CD8T_CD4T_NK/NKT.prop'")
+    ap.add_argument("--group-col",
+                    help="obs column to split folds on, when it differs from the "
+                         "bag. ImmuCa needs --sample-col SampleID --group-col "
+                         "PatientID: the target is constant per sample but a "
+                         "patient can contribute several samples.")
+    ap.add_argument("--layer",
+                    help="use adata.layers[LAYER] instead of X. Required for the "
+                         "ImmuCa result files, whose X is z-scored: pass "
+                         "'counts' with --renormalise, or 'scvi'.")
+    ap.add_argument("--renormalise", action="store_true",
+                    help="normalize_total(1e4) + log1p, applied only if the "
+                         "matrix is integer-valued")
     ap.add_argument("--surv-csv", type=Path,
                     help="CSV indexed by sample id with 'time' and 'status' (cox)")
     ap.add_argument("--package-dir", type=Path,
@@ -337,6 +442,10 @@ def main(argv=None) -> int:
         ap.error("--label-col is required for --task classification")
     if args.task == "cox" and not args.surv_csv:
         ap.error("--surv-csv is required for --task cox")
+    if args.task == "regression" and not args.target_col:
+        ap.error("--target-col is required for --task regression")
+    if args.renormalise and not args.layer:
+        ap.error("--renormalise only makes sense with --layer (X is already scaled)")
 
     sys.path.insert(0, str(args.package_dir))
 
@@ -354,13 +463,22 @@ def main(argv=None) -> int:
     if args.sample_col not in obs:
         raise SystemExit(f"'{args.sample_col}' not in obs. Available: "
                          f"{list(obs.columns)[:30]}")
-    check_lognormalised(peek_x(args.adata))
+    check_lognormalised(peek_layer(args.adata, args.layer) if args.layer
+                        else peek_x(args.adata))
 
     class _ObsOnly:  # build_labels only touches .obs
         def __init__(self, obs): self.obs = obs
 
     # ---- labels, and the samples that carry a usable one ------------------
-    if args.task == "classification":
+    if args.task == "regression":
+        if args.target_col not in obs:
+            raise SystemExit(f"--target-col '{args.target_col}' not in obs. "
+                             f"Available: {list(obs.columns)[:30]}")
+        y = build_targets(obs, args.sample_col, args.target_col)
+        samples = np.array(y.index)
+        strat = None          # nothing to stratify a continuous target on
+        surv, mapping = None, None
+    elif args.task == "classification":
         y, mapping = build_labels(_ObsOnly(obs), args.sample_col, args.label_col)
         samples = np.array(y.index)
         strat = y.values
@@ -383,18 +501,54 @@ def main(argv=None) -> int:
             "each fold's estimate will be dominated by one or two samples.")
 
     # Same splitter for every arm -> the comparison is paired.
-    try:
-        splitter = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=args.seed)
-        folds = list(splitter.split(samples, strat))
-        log(f"{args.folds}-fold stratified split on samples, seed {args.seed}")
-    except ValueError:
-        splitter = KFold(n_splits=args.folds, shuffle=True, random_state=args.seed)
-        folds = list(splitter.split(samples))
-        log(f"{args.folds}-fold split on samples (unstratified), seed {args.seed}")
+    #
+    # --group-col separates the BAG from the SPLIT UNIT, which the ImmuCa data
+    # forces. The infiltration proportion is constant within a *sample* but not
+    # within a *patient*: a patient with a primary and a metastasis has two
+    # different immune proportions. So the bag is the sample and the split must
+    # be on the patient, or one patient's samples land in both train and test.
+    if args.group_col:
+        if args.group_col not in obs:
+            raise SystemExit(f"--group-col '{args.group_col}' not in obs. "
+                             f"Available: {list(obs.columns)[:30]}")
+        s2g = (obs[[args.sample_col, args.group_col]].astype(str)
+                  .drop_duplicates()
+                  .set_index(args.sample_col)[args.group_col])
+        dup = s2g.index.duplicated()
+        if dup.any():
+            raise SystemExit(f"{int(dup.sum())} sample(s) map to more than one "
+                             f"'{args.group_col}'; the grouping is not nested.")
+        groups = np.array([s2g.get(str(s), str(s)) for s in samples])
+        from sklearn.model_selection import GroupKFold
+        folds = list(GroupKFold(n_splits=args.folds).split(samples, groups=groups))
+        log(f"{args.folds}-fold GROUPED split: bag = '{args.sample_col}' "
+            f"({len(samples)}), split on '{args.group_col}' "
+            f"({len(set(groups))} groups)")
+    else:
+        groups = None
+        try:
+            if strat is None:
+                raise ValueError("no stratification target")
+            splitter = StratifiedKFold(n_splits=args.folds, shuffle=True,
+                                       random_state=args.seed)
+            folds = list(splitter.split(samples, strat))
+            log(f"{args.folds}-fold stratified split on samples, seed {args.seed}")
+        except ValueError:
+            splitter = KFold(n_splits=args.folds, shuffle=True, random_state=args.seed)
+            folds = list(splitter.split(samples))
+            log(f"{args.folds}-fold split on samples (unstratified), seed {args.seed}")
 
     for i, (tr, te) in enumerate(folds):
-        log(f"  fold {i}: {len(tr)} train / {len(te)} test samples "
-            f"-> test = {list(samples[te])}")
+        extra = ""
+        if groups is not None:
+            leak = set(groups[tr]) & set(groups[te])
+            extra = f"  [groups: {len(set(groups[tr]))} train / {len(set(groups[te]))} test]"
+            if leak:
+                raise SystemExit(f"fold {i} leaks {len(leak)} group(s) across "
+                                 f"train and test: {sorted(leak)[:5]}")
+        shown = list(samples[te])[:8]
+        log(f"  fold {i}: {len(tr)} train / {len(te)} test samples{extra}"
+            f" -> test = {shown}{' ...' if len(te) > 8 else ''}")
 
     if args.dry_run:
         log("--dry-run: inputs valid, folds built, nothing trained")
@@ -406,7 +560,8 @@ def main(argv=None) -> int:
     import scanpy as sc
 
     log("reading X, obs, var (skipping /raw) ...")
-    adata = read_adata_no_raw(args.adata)
+    adata = read_adata_no_raw(args.adata, layer=args.layer,
+                              renormalise=args.renormalise)
     adata = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, samples)))].copy()
     log(f"{adata.n_obs:,} cells x {adata.n_vars:,} genes in memory")
 
@@ -464,7 +619,11 @@ def main(argv=None) -> int:
                 **overrides,
             )
 
-            if args.task == "classification":
+            if args.task == "regression":
+                ad_tr, res_tr, model = scSurvivalRun(
+                    ad_tr, y_label=y.loc[train_s], task_type="regression",
+                    validate_metric="mse", **common)
+            elif args.task == "classification":
                 ad_tr, res_tr, model = scSurvivalRun(
                     ad_tr, y_label=y.loc[train_s], task_type="classification",
                     num_classes=1, validate_metric="auc", **common)
@@ -490,7 +649,9 @@ def main(argv=None) -> int:
                 #    shape *which cells* are attended to; c-index and AUROC cannot
                 #    see that, so a null there says nothing about the mechanism.
                 rec = dict(arm=arm, fold=i, sample=str(s), pred=preds[s])
-                if args.task == "classification":
+                if args.task == "regression":
+                    rec["y_true"] = float(y.loc[s])
+                elif args.task == "classification":
                     rec["y_true"] = int(y.loc[s])
                 else:
                     rec["time"] = float(surv.loc[s, "time"])
@@ -498,7 +659,10 @@ def main(argv=None) -> int:
                 rec.update(attention_stats(ad_pred))
                 pred_rows.append(rec)
 
-            if args.task == "classification":
+            if args.task == "regression":
+                m = score("regression", y.loc[test_s].values,
+                          [preds[s] for s in test_s])
+            elif args.task == "classification":
                 m = score("classification", y.loc[test_s].values,
                           [preds[s] for s in test_s])
             else:
@@ -516,7 +680,8 @@ def main(argv=None) -> int:
                 args.results_root / f"cv_compare_{args.tag}.csv", index=False)
 
     df = pd.DataFrame(rows)
-    metric = "auroc" if args.task == "classification" else "cindex"
+    metric = {"classification": "auroc", "cox": "cindex",
+              "regression": "spearman"}[args.task]
     summary = df.groupby("arm")[metric].agg(["mean", "std", "count"])
 
     print("\n" + "=" * 60)
@@ -556,7 +721,11 @@ def main(argv=None) -> int:
         pooled = {}
         for arm, g in pdf.groupby("arm"):
             col = "pred_ranked"
-            if args.task == "classification":
+            if args.task == "regression":
+                # rank-normalised predictions -> Spearman is meaningful, R^2 is
+                # not, so score regression pooling on the raw predictions.
+                mm = score("regression", g["y_true"].values, g["pred"].values)
+            elif args.task == "classification":
                 mm = score("classification", g["y_true"].values, g[col].values)
             else:
                 mm = score("cox", (g["time"].values, g["status"].values),

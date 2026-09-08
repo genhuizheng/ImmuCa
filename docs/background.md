@@ -810,206 +810,155 @@ is the only route to the comparison the request actually names.
 
 ---
 
-## 11. First benchmark result — Cox head-to-head, 2026-09-01
+## 11. Earlier CAR-T benchmark — superseded, kept for two findings
 
-`results/cv_compare_cohort_pc.csv`, SLURM job 960597 task 2.
+**These runs answered the wrong question.** Scoped 2026-09-08: the task is
+ImmuCa's — *which malignant cells associate with immune recruitment* — not the
+CAR-T response ablation. See section 12. Full per-fold tables are in
+`results/cv_compare_*.csv` on Vista and in the git history of this file
+(commit `5e58276` and earlier). Two results are worth carrying forward.
 
-**Setup.** `sc_cohort_adata.h5ad` (100 samples, 2,000 genes) with
-`examples/data/surv_info.csv` (time 1-100, **93 events / 7 censored**). Patient-
-level 5-fold CV, seed 42, 80 train / 20 test per fold, HVGs re-selected inside
-each fold on the training split. This is the **only genuine head-to-head on
-disk**: the task is Cox, and because the fork altered no shared default (3f),
-the `off` arm reproduces upstream scSurvival exactly.
+### The CAR-T response model does not generalise
 
-| arm | mean c-index | SD | runtime |
-|---|---|---|---|
-| `on` (extension) | 0.9546 | 0.0077 | 222 s |
-| `off` (= upstream scSurvival) | **0.9604** | 0.0125 | 139 s |
+SLURM 960657 / 962029. 35 labelled donors (20 NR / 15 R), patient-level 5-fold
+CV, protein-coding filter.
 
-Paired, since both arms share folds:
+| dataset | held-out pooled AUROC (`off` / `on`) |
+|---|---|
+| CD4 | 0.485 / 0.313 |
+| CD8 | 0.468 / 0.345 |
 
-```text
-fold      on       off      on-off
-   0    0.9492   0.9626    -0.0134
-   1    0.9655   0.9454    +0.0201
-   2    0.9595   0.9798    -0.0202
-   3    0.9475   0.9568    -0.0093
-   4    0.9510   0.9575    -0.0065
+Mean 0.377 across all 20 fold-arm results, 12/20 below chance, no arm different
+from 0.5 (all p > 0.24). By simulation, that observation is fully consistent
+with **no signal** (14.6%) and **excludes a true AUROC above ~0.56** at the 5%
+level.
 
-paired difference  -0.0059   95% CI [-0.0250, +0.0133]
-paired t           t = -0.850, p = 0.443
-Wilcoxon                        p = 0.438
-runtime ratio      1.60x slower with the extension
-```
+The notebooks report in-sample predictions of `0.999261` and `0.000045`. The gap
+is the overfitting. Any DEG list computed downstream of "predicted R vs NR"
+inherits it. This is a finding about that analysis, not about the three loss
+terms, and it is worth raising with the author -- `validate=False` in three of
+four notebooks suggests he may already treat those runs as diagnostics.
 
-**Conclusion: no detectable c-index benefit, at 1.6x the compute.** The sign
-flips across folds, and the confidence interval is centred on zero.
+Contributing cause, found by re-auditing the setup: `validate=True,
+validate_ratio=0.2` carves an internal validation split *inside* each CV fold,
+so on CAR-T the gradients see **22 donors**, not 28 and not 35. Six more only
+select the checkpoint.
 
-### Two caveats that must travel with this number
+### The three loss terms sharpen attention -- relevant to section 12
 
-**Ceiling.** Both arms sit at 0.95-0.96 with a best fold of 0.98 on simulated
-data with a strong planted signal. There is almost no headroom, so this design
-cannot demonstrate an improvement even if one exists. Do not report the null as
-"the terms do not work".
+| dataset | `off` entropy | `on` entropy | paired diff | p |
+|---|---|---|---|---|
+| CD4 | 0.9891 | 0.9483 | -0.0409 | <0.0001 |
+| CD8 | 0.9849 | 0.9789 | -0.0059 | 0.068 |
+| simulated cohort | 0.9330 | 0.8529 | -0.0801 | <0.0001 |
 
-**Wrong instrument.** The orthogonal-attention and cell-patient consistency
-terms are *attention-shaping*: they target which cells are identified, not
-patient discrimination. C-index cannot see that, and `sc_cohort_adata` carries
-no per-cell ground truth (`surv_info.csv` gives `num.good.cells` /
-`num.bad.cells` per **sample** only). The claim the terms actually make is still
-untested.
+Top-1% attention mass roughly doubles on CD4. So the terms are **not inert**:
+they do concentrate attention, which is their stated purpose. On CAR-T that
+concentration cost 0.12-0.17 AUROC -- a regulariser that increased effective
+overfitting at 22 training donors.
 
-**One positive control passed:** the `off` arm reaching 0.960 on the tutorial's
-own data is upstream scSurvival reproduced, which confirms the harness is sound.
+**Why this matters for the ImmuCa task:** cell selection is the whole point
+there. A method that concentrates attention more strongly is a candidate for
+picking out the malignant cells that recruit immune infiltrate -- and section 12
+has 180 samples rather than 35, so the concentration may help where it hurt
+here. This is now a hypothesis to test, not a settled negative.
 
-### What would actually test the mechanism
+### Method notes retained
 
-- **Attention concentration per arm.** Entropy is already computed during
-  training. If the three terms do not measurably sharpen attention, they are
-  failing at their own objective before c-index is even relevant.
-- **Hazard vs bad-cell fraction.** `num.bad.cells / (good + bad)` is a
-  per-sample ground truth. If the `on` arm's hazards track it more closely,
-  that is the interpretability gain the terms exist for -- and it would not
-  appear in c-index at all.
+- **Cox head-to-head** on `sc_cohort_adata` (100 samples, 93 events): per-fold
+  c-index 0.960 (`off`) vs 0.955 (`on`), paired difference -0.0059,
+  95% CI [-0.025, +0.013], p = 0.44, at 1.60x the runtime. Both arms sit near a
+  0.96 ceiling, so the design could not have shown an improvement. Simulated
+  data.
+- **A defect found in `cv_compare.py`:** pooling raw hazards across folds gave a
+  cohort c-index of 0.893 against a true per-fold 0.960, because the five folds
+  are five models with their own output scales. Fixed by rank-normalising within
+  fold before pooling. Bounded sigmoid outputs were barely affected, so the
+  CAR-T numbers above stand.
 
-### Still running
+---
 
-Job 960657, array 0-1: CAR-T CD4 and CD8 classification ablations, with the
-protein-coding filter. Expect these to be **less** conclusive than the Cox run:
-7 test samples per fold against 20 here, and no upstream baseline exists for
-classification, so `off` is "the fork without its three regularisers" rather
-than scSurvival.
+## 12. The actual task — scSurvival-extend vs PENCIL for cell selection
 
-### 11b. CAR-T classification ablations — job 960657, 2026-09-01
+Scoped 2026-09-08. This supersedes section 11.
 
-`results/cv_compare_cd4_pc.csv`, `cv_compare_cd8_pc.csv`. 35 donors (20 NR /
-15 R), protein-coding filter applied, patient-level 5-fold CV, 7 test donors per
-fold, entropy_threshold 0.7 (CD4) / 0.8 (CD8).
+### The question
 
-| dataset | `on` AUROC | `off` AUROC | paired on-off |
-|---|---|---|---|
-| CD4 | 0.317 +/- 0.297 | 0.475 +/- 0.181 | -0.158 (p = 0.095) |
-| CD8 | 0.333 +/- 0.302 | 0.383 +/- 0.249 | -0.050 (p = 0.374) |
+**Which malignant cells are associated with recruiting immune cells, and which
+are not?** ImmuCa answers it with PENCIL. The task is to answer it with
+scSurvival-extend's regression mode instead, compare the two, and run the
+downstream steps on both.
 
-Across all 20 fold-arm results: **mean AUROC 0.377, 12/20 below chance.** No arm
-differs significantly from 0.5 (all p > 0.24); 95% CIs span roughly [0, 0.7].
+### The algorithm ImmuCa uses is PENCIL — confirmed
 
-**The task does not predict held-out donors.** Below 0.5 is *not*
-anti-predictive at this sample size -- it is noise. The correct statement is
-"indistinguishable from chance".
+Four independent lines of evidence, so this is not an inference:
 
-Compare the notebooks, which report patient predictions of `0.999261` and
-`0.000045` -- near-perfect separation *in sample*. That gap is the overfitting
-diagnosed in 3d, now measured. Any DEG list computed downstream of "predicted
-R vs NR" inherits it.
+| evidence | location |
+|---|---|
+| `from pencil import *` | `immuca.py:14` |
+| `Pencil(mode='regression', select_genes=True, mlflow_record=False)` | `immuca.py:339` |
+| `pencil` declared as a dependency | `immuca/requirements.txt` |
+| "Using PENCIL to identified the responding cancer cells" | `readme.md:15` (+3 more) |
 
-**The ablation question is therefore moot on this data.** Whether a regulariser
-helps cannot be determined for a model that is not predicting. Note also that on
-CD8 **4 of 5 folds produced byte-identical AUROC across arms** -- the three
-terms changed the held-out ranking in one fold only, while costing up to 4x the
-runtime.
+The Immuca deck's speaker notes call it "Scissor2" in places. Same pipeline
+step; the naming relationship is not verifiable from anything on disk.
 
-### What this does NOT establish
+Full call: `mode='regression'`, `select_genes=True`, `lambda_L1=1e-3`,
+`test=True`, cost and `shuffle_rate` parameterised, fed `data=adata_ca.X`.
 
-Alternatives consistent with the same numbers:
+### Correction to an earlier claim in this file's history
 
-- 28 training donors is very thin for a VAE plus 8-head attention over 2,000 genes;
-- the infusion product may genuinely not predict 3-month response -- a real
-  biological finding, publishable as a negative result;
-- hyperparameters were selected in sample, so they are tuned to the wrong target;
-- the protein-coding filter changed the gene universe relative to the notebooks.
+An earlier pass dismissed the `.prop` columns as circular targets. **That was
+wrong.** `cancer_cells_with_results.h5ad` is `ct.L1='Epi'` / `ct.L2='Luminal'`
+throughout -- cancer cells only -- while the target counts *immune* cells that
+are not in the file. Predictor and target come from disjoint cell sets. The
+circularity concern applies only to `Malign_Epi.prop` and
+`Respond_Malign.prop` (the latter being PENCIL's own output), never to the
+immune-lineage proportions.
 
-### Known weakness in how this was measured
+### Design
 
-Averaging per-fold AUROC at n=7 is a poor estimator: attainable values step by
-0.042-0.083, so one donor swapping rank moves a fold by up to 0.083. The right
-estimator pools **out-of-fold predictions across all 35 donors** into a single
-AUROC. `scripts/cv_compare.py` does not currently save per-sample predictions,
-so that cannot be computed from these files -- a gap to fix before quoting any
-of these numbers.
+| | |
+|---|---|
+| dataset | `Prostate_cancer/results/all_samples/cancer_cells_with_results.h5ad` |
+| cells | 93,995 cancer (Luminal) cells x 2,000 HVGs |
+| target | `CD8T_CD4T_NK/NKT.prop`, continuous, `[0, 0.814]` |
+| bag | `SampleID` (~180) |
+| **CV split** | **`PatientID` (133)** -- a patient with a primary and a metastasis has two different infiltration values, so bag != split unit |
+| matrix | `X` is **z-scored** (min -4.76); use `layers['counts']` + renormalise, or `layers['scvi']` |
+| task | `regression` -- the `[-10, 10]` clamp is harmless for a `[0, 1]` target |
 
-### 11c. How much signal could there be? An upper bound, not just a null
+Handled in `scripts/cv_compare.py` by `--target-col`, `--group-col`,
+`--layer` / `--renormalise`. The target builder **refuses** a column that varies
+within the bag, which is the trap this design invites.
 
-A p-value says "we could not detect an effect", which invites "your n was too
-small". A calibration says what the data actually exclude. Simulating 35 donors
-(20 NR / 15 R), 5 folds of 7, at a range of true effect sizes:
+### Three levels of comparison
 
-| true AUROC | simulated per-fold mean | P(observe <= 0.377) |
-|---|---|---|
-| **0.50** (no signal) | 0.501 +/- 0.115 | **14.6%** |
-| 0.556 | 0.560 +/- 0.111 | 5.0% |
-| 0.611 | 0.614 +/- 0.112 | 1.9% |
-| 0.651 | 0.649 +/- 0.110 | 1.1% |
-| 0.714 | 0.716 +/- 0.102 | 0.3% |
-| 0.760 | 0.760 +/- 0.094 | ~0% |
+1. **Sample level** -- predicted vs observed infiltration, held out. Spearman
+   and R^2. PENCIL's counterpart is `.predicted_infiltration`.
+2. **Cell level** -- does scSurvival's `attention` pick the same malignant cells
+   PENCIL called `pos_infilt`? PENCIL's `cell_association` is a 3-class call
+   (`Rejected` / `pos_infilt` / `zero_infilt`) plus `.confidence_score`. This is
+   the comparison that answers the actual biological question.
+3. **Downstream** -- pseudo-bulk from each method's selected cells -> correlated
+   genes -> pathway enrichment, then the overlap between the two gene lists.
 
-**The observed 0.377 is fully consistent with no signal, and excludes a true
-AUROC above roughly 0.56 at the 5% level.**
+### Two confounds to settle deliberately, not by default
 
-That is the defensible statement: not "we failed to detect", but "the data bound
-the effect below ~0.56". A model that at best reaches 0.56 out of sample does not
-support a downstream DEG list.
+**PENCIL was not cross-validated.** The `.predicted_infiltration` in these files
+was fit on all samples. Comparing it to a cross-validated scSurvival flatters
+scSurvival. Decision taken: re-run PENCIL on identical folds. Blocked on whether
+PENCIL installs on **linux-aarch64** -- the ImmuCa notebooks ran on Windows
+(`C:/ProjectData/ImmuCA/...`), so it may never have been on Vista.
 
-*Caveat on this calculation:* 0.377 is the mean of 20 fold-arm values, compared
-against the simulated distribution of a single 5-fold mean. The four
-arm-by-dataset estimates (0.317, 0.475, 0.333, 0.383) are **not independent** --
-CD4 and CD8 use the same 35 donors, and the arms share folds -- so the effective
-n is between 1 and 4 and the bound is approximate. It holds per estimate as well:
-CD8 `off` at 0.383 alone gives the same ~5% threshold at true AUROC 0.556.
+**The two methods natively consume different representations.** PENCIL is fed
+the z-scored `X`; scSurvival requires log-normalised input. Either give both the
+same matrix (departing from how PENCIL was run) or accept that the comparison
+includes the representation. This must be stated whichever way it goes.
 
-*Also corrected:* pooling out-of-fold predictions instead of averaging per-fold
-AUROCs improves the estimator by only **1.15x** in SD, not "substantially" as
-first claimed. Both are limited by n=35, not by the folding. Pooling is still
-the better estimator and is now implemented, but it will not rescue this.
+### Why section 11's attention finding is now a hypothesis, not a negative
 
-### 11d. The mechanism test — job 962029, 2026-09-02
-
-This is the run that separates "the terms do nothing" from "the terms do
-something harmful". **It is the latter.**
-
-**The three terms measurably concentrate attention, as designed.**
-
-| dataset | `off` entropy | `on` entropy | paired diff | p | top-1% mass |
-|---|---|---|---|---|---|
-| CD4 | 0.9891 | 0.9483 | **-0.0409** | <0.0001 | 0.016 -> 0.033 |
-| CD8 | 0.9849 | 0.9789 | -0.0059 | 0.068 | 0.018 -> 0.020 |
-| cohort | 0.9330 | 0.8529 | **-0.0801** | <0.0001 | 0.034 -> 0.048 |
-
-`att_max` rises to ~0.98 everywhere and the fraction of cells above 0.5
-collapses (CD4 0.81 -> 0.30). So the orthogonal-head and consistency losses are
-**not inert** -- that hypothesis is excluded.
-
-**And on CAR-T the sharpening actively hurts.**
-
-| dataset | `off` | `on` | effect |
-|---|---|---|---|
-| CD4 pooled AUROC | 0.4850 | 0.3133 | **-0.1717** |
-| CD8 pooled AUROC | 0.4683 | 0.3450 | **-0.1233** |
-| cohort per-fold c-index | 0.9604 | 0.9546 | -0.0059 |
-
-Mechanistically consistent: concentrating attention over **28 training donors**
-commits the model to a small cell set that separates the training data and does
-not transfer. The damage is largest where attention sharpened most -- CD4 has
-both the biggest entropy drop and the biggest AUROC loss. This is a regulariser
-that increases effective overfitting.
-
-### A defect in this script, found and fixed
-
-The first version of the pooled estimator reported a cohort c-index of **0.893**
-against a per-fold **0.960**. That gap was an artefact of my own code, not a
-result: c-index is a *global* ranking, but the five folds are five different
-models with their own hazard scales, so pooling raw hazards lets fold membership
-dominate the order.
-
-Demonstrated on synthetic data with a deliberate per-fold offset:
-
-```text
-per-fold mean c-index         0.9428
-pooled on RAW hazards         0.6192   <- artefact
-pooled on within-fold RANKS   0.8803   <- fixed
-```
-
-`cv_compare.py` now rank-normalises within each fold before pooling. Bounded
-sigmoid outputs were barely affected (classification pooled 0.485 vs per-fold
-0.475), so **the CAR-T pooled numbers above stand**; the cohort figure to quote
-is the per-fold 0.960 / 0.955, not 0.893.
+The three loss terms measurably concentrate attention. On CAR-T that hurt, at 22
+effective training donors. Here cell selection **is** the deliverable and there
+are ~180 samples, so sharper attention may be an advantage rather than a cost.
+That is now the thing to test.

@@ -31,7 +31,11 @@ data/**
 *.tar.gz
 
 #--- Slides -----------------------------------------------------------------
-# The project decks are 16-22 MB apiece. Useful to have locally, not in history.
+# No decks in git, generated or otherwise. The colleagues' are 16-22 MB, and
+# ours is regenerable: scripts/make_figures.py + scripts/make_deck.py rebuild it
+# from the numbers recorded in docs/background.md, and those scripts ARE tracked.
+# The figures themselves (PNG, ~150 KB each) are tracked, so the content is in
+# history even though the container is not.
 *.pptx
 
 #--- Python -----------------------------------------------------------------
