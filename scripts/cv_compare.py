@@ -135,13 +135,31 @@ def read_adata_no_raw(path, layer=None, renormalise=False):
         from scipy import sparse
         vals = ad.X.data if sparse.issparse(ad.X) else np.asarray(ad.X).ravel()
         nz = vals[np.isfinite(vals) & (vals != 0)]
-        if nz.size and np.allclose(nz, np.rint(nz)):
+        if nz.size == 0:
+            raise SystemExit("the selected matrix is entirely zero")
+
+        # Decide by FRACTION, not by all-or-nothing. `np.allclose` over 188M
+        # entries fails on a handful of non-integer values, which silently
+        # skipped the normalisation this run depends on -- while the 200-row
+        # check downstream saw only integers and then aborted. Measured on
+        # Prostate_cancer/.../cancer_cells_with_results.h5ad layers['counts'].
+        frac_int = float(np.mean(np.isclose(nz, np.rint(nz))))
+        vmax = float(nz.max())
+        log(f"selected matrix: {frac_int:.4%} of nonzero values are integers, "
+            f"max {vmax:.4g}")
+
+        already_lognorm = frac_int < 0.5 and vmax < 20
+        if already_lognorm:
+            log("--renormalise requested but this already looks log-normalised "
+                "(mostly non-integer, small max); left unchanged")
+        else:
+            if frac_int < 0.99:
+                log(f"NOTE: only {frac_int:.2%} of values are integers, so this "
+                    "is not pure counts. Normalising anyway because "
+                    "--renormalise was requested explicitly.")
             sc.pp.normalize_total(ad, target_sum=1e4)
             sc.pp.log1p(ad)
             log("renormalised: normalize_total(1e4) + log1p")
-        else:
-            log("--renormalise requested but the matrix is not integer-valued; "
-                "left unchanged")
     return ad
 
 
