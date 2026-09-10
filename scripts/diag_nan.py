@@ -104,6 +104,9 @@ def main(argv=None) -> int:
     ap.add_argument("--pretrain-epochs", type=int, default=20)
     ap.add_argument("--only", help="comma-separated variant names to run")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--allow-cpu", action="store_true",
+                    help="train without a GPU. ~50x slower; for argument "
+                         "checking only, not for a result")
     args = ap.parse_args(argv)
 
     sys.path.insert(0, str(args.package_dir))
@@ -111,6 +114,22 @@ def main(argv=None) -> int:
     from scSurvival_e import scSurvivalRun
 
     log(f"torch {torch.__version__}  cuda available={torch.cuda.is_available()}")
+
+    # Refuse the login node before touching the data. Without this the first
+    # thing that happens is a 94k-cell load and a scanpy normalisation, and the
+    # login node's thread cap kills that with `libgomp: Thread creation failed`
+    # after ~30s of pointless work -- or, worse, it succeeds and then trains on
+    # CPU at ~50x, which looks like a hang rather than a mistake.
+    if not torch.cuda.is_available() and not args.allow_cpu:
+        raise SystemExit(
+            "No CUDA device visible, so this is a login node (or a node with no\n"
+            "GPU). This diagnostic trains; refusing to do that here.\n\n"
+            "Get an interactive GPU node first:\n"
+            "    idev -p gh-dev -N 1 -n 1 -t 02:00:00 -A MCB26031\n\n"
+            "then re-run the same command inside that session. Pass --allow-cpu\n"
+            "only to check argument handling, never for a real result.")
+    if torch.cuda.is_available():
+        log(f"device {torch.cuda.get_device_name(0)}")
 
     wanted = set(args.only.split(",")) if args.only else None
     results = []
