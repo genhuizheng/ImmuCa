@@ -125,10 +125,12 @@ python "$repo/scripts/cv_compare.py" \
     --layer        counts \
     --renormalise \
     --package-dir  "$pkg" \
-    --folds        5 \
+    --folds        "${CV_FOLDS:-5}" \
+    --epochs       "${CV_EPOCHS:-500}" \
+    --pretrain-epochs "${CV_PRETRAIN:-200}" \
     --seed         42 \
     --results-root "$repo/results" \
-    --tag          "immuca_${name}_tnk"
+    --tag          "immuca_${name}_tnk${CV_TAG_SUFFIX:-}"
 
 echo
 echo "finished     $(date -Is)"

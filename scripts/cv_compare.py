@@ -157,9 +157,29 @@ def read_adata_no_raw(path, layer=None, renormalise=False):
                 log(f"NOTE: only {frac_int:.2%} of values are integers, so this "
                     "is not pure counts. Normalising anyway because "
                     "--renormalise was requested explicitly.")
+
+            # Drop zero-total cells BEFORE normalising. This file is already
+            # subset to 2,000 HVGs, so a cell can legitimately have zero counts
+            # across all of them -- and normalize_total then divides by zero,
+            # producing NaN that propagates silently into the VAE and only
+            # surfaces as "Expected parameter loc ... found invalid values".
+            tot = np.asarray(ad.X.sum(axis=1)).ravel()
+            n_empty = int((tot <= 0).sum())
+            if n_empty:
+                log(f"dropping {n_empty:,} cell(s) with zero total counts across "
+                    f"the {ad.n_vars:,} genes present (of {ad.n_obs:,})")
+                ad = ad[tot > 0].copy()
+
             sc.pp.normalize_total(ad, target_sum=1e4)
             sc.pp.log1p(ad)
             log("renormalised: normalize_total(1e4) + log1p")
+
+            bad = int((~np.isfinite(
+                ad.X.data if sparse.issparse(ad.X) else np.asarray(ad.X))).sum())
+            if bad:
+                raise SystemExit(
+                    f"{bad:,} non-finite values after normalisation. This is the "
+                    "failure that surfaces later as a NaN tensor inside the VAE.")
     return ad
 
 
@@ -229,6 +249,18 @@ def check_lognormalised(chunk, fatal: bool = True) -> None:
     from scipy import sparse
 
     vals = np.asarray(chunk.data if sparse.issparse(chunk) else chunk).ravel()
+
+    # Report non-finite values instead of filtering them away. The original
+    # version dropped them silently, so a matrix full of NaN passed this check
+    # and failed much later inside the VAE with an opaque torch error.
+    n_bad = int((~np.isfinite(vals)).sum())
+    if n_bad:
+        _reject(f"{n_bad:,} of {vals.size:,} sampled values are NaN or inf. "
+                "Usually zero-total cells divided by zero during "
+                "normalize_total.", fatal)
+        if fatal:
+            return
+
     nz = vals[np.isfinite(vals) & (vals != 0)]
     if nz.size == 0:
         _reject("X appears to be all zero in the first rows.", fatal); return
