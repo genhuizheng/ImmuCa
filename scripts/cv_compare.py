@@ -497,6 +497,14 @@ def main(argv=None) -> int:
     ap.add_argument("--num-heads", type=int, default=8)
     ap.add_argument("--hidden-size", type=int, default=128)
     ap.add_argument("--entropy-threshold", type=float, default=0.7)
+    ap.add_argument("--rec-likelihood", default="ZIG", choices=["ZIG", "G", "G+L"],
+                    help="VAE reconstruction likelihood. ZIG is what the "
+                         "notebooks use, but its exp(recon_logvar) is unbounded "
+                         "and can overflow to inf on very sparse data, which "
+                         "surfaces as a NaN decoder output. G is the plain "
+                         "Gaussian fallback.")
+    ap.add_argument("--lr", type=float, default=1e-3,
+                    help="learning rate; lower it if training diverges")
     ap.add_argument("--results-root", type=Path, default=REPO_ROOT / "results")
     ap.add_argument("--tag", default="run", help="suffix for the output filenames")
     ap.add_argument("--dry-run", action="store_true",
@@ -706,11 +714,12 @@ def main(argv=None) -> int:
 
             common = dict(
                 sample_column=args.sample_col,
-                feature_flavor="AE", rec_likelihood="ZIG", gene_weight_alpha=0.2,
+                feature_flavor="AE", rec_likelihood=args.rec_likelihood,
+                gene_weight_alpha=0.2,
                 hidden_size=args.hidden_size, num_heads=args.num_heads,
                 entropy_threshold=args.entropy_threshold,
                 epochs=args.epochs, pretrain_epochs=args.pretrain_epochs,
-                lr=0.001, dropout=0.5, patience=15,
+                lr=args.lr, dropout=0.5, patience=15,
                 validate=True, validate_ratio=0.2,
                 extract_feature=True, once_load_to_gpu=True, sample_balance=False,
                 fitnetune_strategy="alternating_lightly",
