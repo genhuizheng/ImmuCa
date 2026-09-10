@@ -2,7 +2,7 @@
 #SBATCH -J immuca_diag
 #SBATCH -o /scratch/10119/ghzheng/Tumor_immunity_analysis/logs/diag_%j.out
 #SBATCH -e /scratch/10119/ghzheng/Tumor_immunity_analysis/logs/diag_%j.err
-#SBATCH -p gh
+#SBATCH -p gh-dev
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 32
@@ -14,8 +14,10 @@
 # Diagnose the VAE NaN on the prostate cohort, and time one short run so the
 # full job can be estimated.
 #
-# `-p gh` with a 1-hour limit rather than gh-dev: gh-dev caps a user at one job
-# at a time, and other jobs are already queued. A short gh job backfills.
+# `-p gh-dev` on Genhui's instruction: keep the production `gh` queue free for
+# the real runs. gh-dev generally allows one job per user at a time, so if this
+# sits PENDING check for another gh-dev job of your own first. Override without
+# editing the file:  sbatch -p gh .../diag_nan.slurm
 #
 # Launch:
 #   sbatch /scratch/10119/ghzheng/Tumor_immunity_analysis/scripts/slurm/diag_nan.slurm
