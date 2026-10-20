@@ -59,22 +59,56 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from cv_compare import log, read_adata_no_raw, build_targets  # noqa: E402
+from cv_compare import (  # noqa: E402
+    log, read_adata_no_raw, build_targets, tune_cuda,
+)
 
 
-# name -> (loader kwargs, scSurvivalRun overrides, what it isolates)
+COUNTS = dict(layer="counts", renormalise=True)
+
+# name -> (loader kwargs, scSurvivalRun overrides, what it isolates, harness opts)
+#
+# `harness` overrides the command line for that variant: n_samples (bags kept,
+# largest first) and min_bag (drop bags below this many cells). The first five
+# ran as SLURM 988067/988277/988278 and settled that the failure is neither the
+# learning rate, nor ZIG, nor the epoch count, but something cell-level that
+# appears only once all 180 bags are present. The last four test the two fixes
+# the audit pointed at, and all four therefore need n_samples=200 (= all 180).
 VARIANTS = [
-    ("baseline", dict(layer="counts", renormalise=True), {},
-     "reproduce the failure"),
-    ("lr_1e-4", dict(layer="counts", renormalise=True), dict(lr=1e-4),
-     "candidate 1: logvar drift"),
-    ("batch_512", dict(layer="counts", renormalise=True),
-     dict(pretrain_batch_size=512, instance_batch_size=512),
-     "candidate 2: summed loss over the largest bag"),
-    ("rec_G", dict(layer="counts", renormalise=True), dict(rec_likelihood="G"),
-     "drop the ZIG log terms"),
+    ("baseline", COUNTS, {},
+     "reproduce the failure", {}),
+    ("lr_1e-4", COUNTS, dict(lr=1e-4),
+     "candidate 1: logvar drift", {}),
+    ("batch_512", COUNTS, dict(pretrain_batch_size=512, instance_batch_size=512),
+     "candidate 2: summed loss over the largest bag", {}),
+    ("rec_G", COUNTS, dict(rec_likelihood="G"),
+     "drop the ZIG log terms", {}),
     ("scvi_layer", dict(layer="scvi", renormalise=False), {},
-     "candidate 3: the input; also what PENCIL consumes"),
+     "candidate 3: the input; also what PENCIL consumes", {}),
+
+    # --- the four that matter now: all 180 bags ---
+    ("all_asis", COUNTS, {},
+     "all 180 bags, unchanged -- the failure to beat",
+     dict(n_samples=200)),
+    ("all_median_norm", dict(COUNTS, target_sum=None), {},
+     "scale each cell to the MEDIAN total (scanpy's default) instead of 1e4. "
+     "The file is already 2,000 HVGs, where the median cell holds 81 counts "
+     "and p1 holds 4, so 1e4 multiplies the shallowest cells by 2,500x",
+     dict(n_samples=200)),
+    ("all_min_bag_2", COUNTS, {},
+     "the MINIMAL fix: drop only the 4 one-cell bags. scsurvival_core.py:575 "
+     "divides by np.log(n_cells), which is 0 exactly at n=1; n=2 already gives "
+     "a clean 1.0. Costs 4 samples (CRPC:3, N:1)",
+     dict(n_samples=200, min_bag=2)),
+    ("all_min_bag_10", COUNTS, {},
+     "a QC threshold rather than a bug fix: drop the 17 bags with <10 cells. "
+     "Costs 17 samples including 10 of the 40 CRPC -- a quarter of that group",
+     dict(n_samples=200, min_bag=10)),
+    ("all_qc", dict(COUNTS, target_sum=None), {},
+     "median normalisation on top of the minimal bag fix. Median scaling did "
+     "NOT fix the crash on its own (all_median_norm still died), but it does "
+     "tame the input: max 4.41 instead of 9.21",
+     dict(n_samples=200, min_bag=2)),
 ]
 
 
@@ -104,7 +138,8 @@ def audit(args) -> int:
     from scipy import sparse
 
     # Raw first: the normalised view hides which cells were odd to begin with.
-    raw = read_adata_no_raw(args.adata, layer="counts", renormalise=False)
+    raw = read_adata_no_raw(args.adata, layer="counts", renormalise=False,
+                            cache_dir=args.cache_dir)
     Xr = raw.X.tocsr() if sparse.issparse(raw.X) else sparse.csr_matrix(raw.X)
     tot = np.asarray(Xr.sum(axis=1)).ravel()
     mx = np.asarray(Xr.max(axis=1).todense()).ravel()
@@ -136,7 +171,8 @@ def audit(args) -> int:
             f"{int((conc > t).sum()):,}")
 
     # Now the normalised matrix the model actually sees.
-    ad = read_adata_no_raw(args.adata, layer="counts", renormalise=True)
+    ad = read_adata_no_raw(args.adata, layer="counts", renormalise=True,
+                           cache_dir=args.cache_dir)
     X = ad.X.tocsr() if sparse.issparse(ad.X) else sparse.csr_matrix(ad.X)
     nnz2 = np.diff(X.indptr)
     cell_of2 = np.repeat(np.arange(X.shape[0]), nnz2)
@@ -197,6 +233,10 @@ def main(argv=None) -> int:
     ap.add_argument("--package-dir", type=Path, required=True)
     ap.add_argument("--n-samples", type=int, default=24,
                     help="bags to keep; enough to train, small enough to be quick")
+    ap.add_argument("--min-bag", type=int, default=1,
+                    help="drop bags with fewer than this many cells. 4 bags "
+                         "hold a single cell, where normalised attention "
+                         "entropy divides by log(1) = 0")
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--pretrain-epochs", type=int, default=20)
     ap.add_argument("--only", help="comma-separated variant names to run")
@@ -208,6 +248,12 @@ def main(argv=None) -> int:
                     help="characterise the cells, train nothing. Added after "
                          "988277/988278 showed the failure is scale-dependent "
                          "and lands in pretraining, so the cause is cell-level")
+    ap.add_argument("--cache-dir", type=Path,
+                    help="reuse the preprocessed matrix across runs; this is "
+                         "what makes a local debugging loop fast")
+    ap.add_argument("--fast", action="store_true",
+                    help="enable TF32 matmuls. Leave off while the NaN is "
+                         "unresolved -- it perturbs numerics.")
     args = ap.parse_args(argv)
 
     if args.audit:
@@ -234,19 +280,24 @@ def main(argv=None) -> int:
             "only to check argument handling, never for a real result.")
     if torch.cuda.is_available():
         log(f"device {torch.cuda.get_device_name(0)}")
+    tune_cuda(args.fast)
 
     wanted = set(args.only.split(",")) if args.only else None
     results = []
 
-    for name, load_kw, run_kw, purpose in VARIANTS:
+    for name, load_kw, run_kw, purpose, harness in VARIANTS:
         if wanted and name not in wanted:
             continue
+        n_samples = harness.get("n_samples", args.n_samples)
+        min_bag = harness.get("min_bag", args.min_bag)
         print()
         log(f"########## {name}  --  {purpose} ##########")
-        log(f"  load {load_kw}   run {run_kw}")
+        log(f"  load {load_kw}   run {run_kw}   "
+            f"bags<={n_samples} min_bag={min_bag}")
 
         try:
-            ad = read_adata_no_raw(args.adata, **load_kw)
+            ad = read_adata_no_raw(args.adata, cache_dir=args.cache_dir,
+                                   **load_kw)
         except SystemExit as e:
             log(f"  LOAD FAILED: {e}")
             results.append((name, "load-failed", str(e)[:80]))
@@ -258,7 +309,14 @@ def main(argv=None) -> int:
         # pretrain_batch_size, so dropping it would hide candidate 2.
         counts = ad.obs[args.sample_col].astype(str).value_counts()
         usable = set(map(str, y.index))
-        keep = set(s for s in counts.index[: args.n_samples] if s in usable)
+        keep = set(s for s in counts.index[:n_samples] if s in usable)
+        if min_bag > 1:
+            dropped = sorted(s for s in keep if int(counts[s]) < min_bag)
+            if dropped:
+                log(f"  dropping {len(dropped)} bag(s) with <{min_bag} cells: "
+                    + ", ".join(f"{s}({int(counts[s])})" for s in dropped[:8])
+                    + (" ..." if len(dropped) > 8 else ""))
+                keep -= set(dropped)
         ad = ad[ad.obs[args.sample_col].astype(str).isin(keep)].copy()
         y = y.loc[[s for s in y.index if str(s) in keep]]
         sizes = ad.obs[args.sample_col].astype(str).value_counts()

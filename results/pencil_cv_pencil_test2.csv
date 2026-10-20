@@ -1,0 +1,2 @@
+method,fold,n_train,n_test,n_cells_test,frac_selected,n_no_selected_cell,seconds,r2_allcells,mae_allcells,spearman_allcells,r2_selected,mae_selected,spearman_selected
+pencil,0,140,36,17752,0.21389139251915276,9,292.5,-0.21210213460409744,0.23387807394801044,0.025621496404518322,-0.12409002949914583,0.22121371955593297,-0.0555132422097897

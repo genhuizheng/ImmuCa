@@ -106,16 +106,186 @@ def peek_x(path, n=200):
         return sparse_dataset(x)[: n]
 
 
-def read_adata_no_raw(path, layer=None, renormalise=False):
+def _fold_job(payload):
+    """Train and score ONE (arm, fold). Module-level so it can be pickled.
+
+    Why this is worth parallelising: the fine-tuning loop walks bags one at a
+    time in Python (`scsurvival_core.py:565` appends per-bag), so a step is
+    dominated by kernel-launch latency rather than by arithmetic -- ~12 ms for
+    a bag that does microseconds of work. The GPU sits mostly idle, and several
+    folds can share it with close to linear speedup until memory runs out.
+
+    The worker re-reads the matrix from the preprocessing cache (~0.2 s) rather
+    than receiving it through the pickle channel, which would cost far more.
+    That is the second reason --cache-dir matters.
+    """
+    import numpy as np
+    import pandas as pd
+
+    args = payload["args"]
+    arm, i = payload["arm"], payload["fold"]
+    train_s, test_s = payload["train_s"], payload["test_s"]
+    y, surv = payload["y"], payload["surv"]
+
+    sys.path.insert(0, str(args.package_dir))
+    import scanpy as sc
+    from scSurvival_e import scSurvivalRun, PredictIndSample
+
+    tune_cuda(args.fast)
+    t0 = time.time()
+
+    adata = read_adata_no_raw(args.adata, layer=args.layer,
+                              renormalise=args.renormalise,
+                              cache_dir=args.cache_dir,
+                              target_sum=args.target_sum)
+    # Same condition as the parent at the call site below, so the worker and
+    # the validated gene universe cannot drift apart.
+    if args.protein_coding_csv or args.biotype_col or args.exclude_prefix:
+        adata = filter_genes(adata, args)
+    scol = adata.obs[args.sample_col].astype(str)
+    ad_tr = adata[scol.isin(set(map(str, train_s)))].copy()
+
+    # HVGs from the training split only -- selecting on all cells first leaks
+    # test-set variance structure into the feature set. Note this is a no-op on
+    # cancer_cells_with_results.h5ad, which already carries exactly 2,000 genes.
+    hvg_kw = ({"layer": "counts"}
+              if args.hvg_flavor == "seurat_v3" and "counts" in ad_tr.layers else {})
+    sc.pp.highly_variable_genes(ad_tr, n_top_genes=args.n_hvg, subset=False,
+                                flavor=args.hvg_flavor, **hvg_kw)
+    hvgs = ad_tr.var.index[ad_tr.var["highly_variable"]].tolist()
+    ad_tr = ad_tr[:, hvgs].copy()
+    ad_te = adata[scol.isin(set(map(str, test_s)))][:, hvgs].copy()
+    del adata
+
+    common = dict(
+        sample_column=args.sample_col,
+        feature_flavor="AE", rec_likelihood=args.rec_likelihood,
+        gene_weight_alpha=0.2,
+        hidden_size=args.hidden_size, num_heads=args.num_heads,
+        entropy_threshold=args.entropy_threshold,
+        epochs=args.epochs, pretrain_epochs=args.pretrain_epochs,
+        lr=args.lr, dropout=0.5, patience=15,
+        validate=True, validate_ratio=0.2,
+        extract_feature=True, once_load_to_gpu=True, sample_balance=False,
+        fitnetune_strategy="alternating_lightly",
+        **ARMS[arm],
+    )
+
+    if args.task == "regression":
+        ad_tr, _, model = scSurvivalRun(ad_tr, y_label=y.loc[train_s],
+                                        task_type="regression",
+                                        validate_metric="mse", **common)
+    elif args.task == "classification":
+        ad_tr, _, model = scSurvivalRun(ad_tr, y_label=y.loc[train_s],
+                                        task_type="classification",
+                                        num_classes=1, validate_metric="auc",
+                                        **common)
+    else:
+        ad_tr, _, model = scSurvivalRun(ad_tr, surv=surv.loc[train_s],
+                                        task_type="cox",
+                                        validate_metric="ccindex", **common)
+
+    # Score held-out samples one at a time, as benchmark.ipynb does.
+    preds, pred_rows = {}, []
+    te_col = ad_te.obs[args.sample_col].astype(str)
+    for s in test_s:
+        ad_s = ad_te[te_col == str(s)].copy()
+        ad_pred, p = PredictIndSample(ad_s, adata=ad_tr, model=model)
+        preds[s] = float(np.ravel(p)[0])
+
+        # Per-sample out-of-fold record. Two reasons this matters:
+        #
+        # 1. Pooling every prediction into ONE metric beats averaging five
+        #    small per-fold metrics, where attainable values step coarsely and
+        #    a single sample swapping rank moves a fold a long way.
+        # 2. The attention statistics are the only direct test of what the
+        #    orthogonal-head and consistency losses actually target. They shape
+        #    *which cells* are attended to; a sample-level metric cannot see
+        #    that, so a null there says nothing about the mechanism.
+        rec = dict(arm=arm, fold=i, sample=str(s), pred=preds[s])
+        if args.task == "regression":
+            rec["y_true"] = float(y.loc[s])
+        elif args.task == "classification":
+            rec["y_true"] = int(y.loc[s])
+        else:
+            rec["time"] = float(surv.loc[s, "time"])
+            rec["status"] = int(surv.loc[s, "status"])
+        rec.update(attention_stats(ad_pred))
+        pred_rows.append(rec)
+
+    if args.task == "cox":
+        m = score("cox", (surv.loc[test_s, "time"].values,
+                          surv.loc[test_s, "status"].values),
+                  [preds[s] for s in test_s])
+    else:
+        m = score(args.task, y.loc[test_s].values, [preds[s] for s in test_s])
+
+    row = dict(arm=arm, fold=i, n_train=len(train_s), n_test=len(test_s),
+               n_hvg=len(hvgs), seconds=round(time.time() - t0, 1), **m)
+    return row, pred_rows
+
+
+def tune_cuda(enable: bool) -> None:
+    """TF32 matmuls. Ada and Hopper both support them; the speedup on this
+    model is worth having because it is Linear layers end to end.
+
+    Off by default and deliberately so: TF32 keeps 10 mantissa bits instead of
+    23, which perturbs numerics. While an unexplained NaN is open, changing the
+    arithmetic underneath it would make every result ambiguous. Turn this on
+    once training is stable, not before.
+    """
+    if not enable:
+        return
+    import torch
+    if not torch.cuda.is_available():
+        log("--fast ignored: no CUDA device")
+        return
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.set_float32_matmul_precision("high")
+    log("TF32 enabled for matmul (--fast)")
+
+
+def _cache_key(path, layer, renormalise, target_sum) -> str:
+    """Identity of a preprocessed matrix: the source file's path, size and
+    mtime, plus every option that changes the result."""
+    import hashlib
+
+    st = Path(path).stat()
+    raw = (f"{Path(path).resolve()}|{st.st_size}|{int(st.st_mtime)}"
+           f"|{layer}|{renormalise}|{target_sum}")
+    return hashlib.sha1(raw.encode()).hexdigest()[:16]
+
+
+def read_adata_no_raw(path, layer=None, renormalise=False, cache_dir=None,
+                      target_sum=1e4):
     """X (or a named layer), obs and var -- deliberately skipping /raw.
 
     `layer` exists for the ImmuCa result files, whose `X` is z-scored
     (min ~ -4.8) and therefore invalid for scSurvival. Those files carry
     `layers['counts']` (raw) and `layers['scvi']` (scVI-decoded), either of which
     is usable -- counts with `renormalise=True`, scvi as-is.
+
+    `cache_dir` writes the preprocessed result once and reuses it. Reading the
+    4 GB source and re-running normalize_total+log1p costs ~20-30s of every
+    run, which dominates a debugging iteration that trains for 14s. The cache
+    key includes the source size and mtime, so a changed input invalidates it.
+    This changes nothing numerically -- it stores exactly what was computed.
     """
     import h5py
     from anndata import AnnData
+
+    cache = None
+    if cache_dir:
+        cache = (Path(cache_dir) /
+                 f"prep_{_cache_key(path, layer, renormalise, target_sum)}.h5ad")
+        if cache.exists():
+            import anndata
+            t0 = time.time()
+            ad = anndata.read_h5ad(cache)
+            log(f"loaded cached matrix {cache.name} "
+                f"({ad.n_obs:,}x{ad.n_vars:,}, {time.time() - t0:.1f}s)")
+            return ad
 
     with h5py.File(path, "r") as f:
         obs = _read_elem(f["obs"])
@@ -170,9 +340,18 @@ def read_adata_no_raw(path, layer=None, renormalise=False):
                     f"the {ad.n_vars:,} genes present (of {ad.n_obs:,})")
                 ad = ad[tot > 0].copy()
 
-            sc.pp.normalize_total(ad, target_sum=1e4)
+            # target_sum=None is scanpy's own default: every cell is scaled
+            # to the MEDIAN total rather than to a fixed 1e4. That matters
+            # here because this file is already subset to 2,000 HVGs, where
+            # the median cell carries 81 counts and the 1st percentile
+            # carries 4. Forcing those to 1e4 multiplies a 4-count cell by
+            # 2,500 while dividing a 120,700-count cell by 12 -- a 30,000x
+            # spread of scaling factors, and the source of both the 9.21
+            # ceiling and the 1.1e-05 floor seen in the failing run.
+            sc.pp.normalize_total(ad, target_sum=target_sum)
             sc.pp.log1p(ad)
-            log("renormalised: normalize_total(1e4) + log1p")
+            how = "median of cell totals" if target_sum is None else f"{target_sum:g}"
+            log(f"renormalised: normalize_total({how}) + log1p")
 
             bad = int((~np.isfinite(
                 ad.X.data if sparse.issparse(ad.X) else np.asarray(ad.X))).sum())
@@ -180,6 +359,17 @@ def read_adata_no_raw(path, layer=None, renormalise=False):
                 raise SystemExit(
                     f"{bad:,} non-finite values after normalisation. This is the "
                     "failure that surfaces later as a NaN tensor inside the VAE.")
+
+    if cache is not None:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        t0 = time.time()
+        # No compression: this is a scratch cache read far more often than it
+        # is written, and gzip would trade the read speed we are buying.
+        tmp = cache.with_suffix(".tmp.h5ad")
+        ad.write_h5ad(tmp, compression=None)
+        tmp.replace(cache)          # atomic, so a killed run leaves no half file
+        log(f"cached preprocessed matrix -> {cache.name} "
+            f"({cache.stat().st_size / 1e9:.2f} GB, {time.time() - t0:.1f}s)")
     return ad
 
 
@@ -240,7 +430,7 @@ def _reject(msg: str, fatal: bool) -> None:
     log("NOTE: " + " ".join(msg.split()))
 
 
-def check_lognormalised(chunk, fatal: bool = True) -> None:
+def check_lognormalised(chunk, fatal: bool = True, source: str = "X") -> None:
     """Refuse raw counts. scSurvival trains on them without complaint.
 
     This is the failure mode that produces a plausible wrong answer rather than
@@ -263,18 +453,18 @@ def check_lognormalised(chunk, fatal: bool = True) -> None:
 
     nz = vals[np.isfinite(vals) & (vals != 0)]
     if nz.size == 0:
-        _reject("X appears to be all zero in the first rows.", fatal); return
+        _reject(f"{source} appears to be all zero in the first rows.", fatal); return
     if nz.min() < 0:
         _reject(
-            f"X has negative values (min {nz.min():.3g}) -- this looks scaled or "
+            f"{source} has negative values (min {nz.min():.3g}) -- this looks scaled or "
             "latent, not log-normalised. Use layers['scvi'] or re-derive from "
             "layers['counts'].", fatal); return
     if np.allclose(nz, np.rint(nz)) and nz.max() > 30:
         _reject(
-            f"X looks like RAW COUNTS (integer-valued, max {nz.max():.0f}). "
+            f"{source} looks like RAW COUNTS (integer-valued, max {nz.max():.0f}). "
             "scSurvival needs log-normalised input and will NOT error on counts "
             "-- it will just train on the wrong scale. Normalise first.", fatal); return
-    log(f"X check passed: non-integer, max {nz.max():.3g} -- log-normalised")
+    log(f"{source} check passed: non-integer, max {nz.max():.3g} -- log-normalised")
 
 
 def filter_genes(adata, args):
@@ -473,6 +663,12 @@ def main(argv=None) -> int:
                     help="directory containing the scSurvival_e package")
     ap.add_argument("--arms", nargs="+", default=["on", "off"], choices=list(ARMS))
     ap.add_argument("--folds", type=int, default=5)
+    ap.add_argument("--only-folds", type=int, nargs="+",
+                    help="train only these fold indices. The split is still "
+                         "drawn over all --folds, so a subset is identical to "
+                         "the corresponding slice of a full run -- which is "
+                         "what makes a SLURM array over (arm, fold) safe to "
+                         "merge afterwards.")
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--n-hvg", type=int, default=2000)
     ap.add_argument("--hvg-flavor", default="seurat",
@@ -505,6 +701,33 @@ def main(argv=None) -> int:
                          "Gaussian fallback.")
     ap.add_argument("--lr", type=float, default=1e-3,
                     help="learning rate; lower it if training diverges")
+    ap.add_argument("--cache-dir", type=Path,
+                    help="reuse the preprocessed matrix across runs. Saves the "
+                         "4 GB read plus normalize_total+log1p every time, "
+                         "which dominates a debugging iteration. Numerically "
+                         "identical: it stores exactly what was computed.")
+    ap.add_argument("--fast", action="store_true",
+                    help="enable TF32 matmuls (Ampere and later). ~2x on the "
+                         "Linear layers this model is made of.")
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="(arm, fold) tasks to train concurrently. The "
+                         "fine-tuning loop walks bags one at a time, so a step "
+                         "is launch-latency bound and the GPU is mostly idle; "
+                         "several folds share it well. Budget roughly 1.5 GB "
+                         "of VRAM per worker for this cohort.")
+    ap.add_argument("--target-sum", type=float, default=1e4,
+                    help="normalize_total target. Pass 0 for scanpy's default "
+                         "(the median cell total), which is the defensible "
+                         "choice on an HVG-only matrix: here the median cell "
+                         "holds 81 counts, so 1e4 inflates the shallowest "
+                         "cells 2,500x.")
+    ap.add_argument("--min-bag-cells", type=int, default=2,
+                    help="drop samples with fewer cells than this. The default "
+                         "of 2 is NOT optional: scsurvival_core.py:575 divides "
+                         "attention entropy by np.log(n_cells), which is 0 at "
+                         "n=1, giving -inf and then NaN weights. Raising it "
+                         "further is a QC choice with a real cost -- 10 drops "
+                         "17 samples including a quarter of the CRPC group.")
     ap.add_argument("--results-root", type=Path, default=REPO_ROOT / "results")
     ap.add_argument("--tag", default="run", help="suffix for the output filenames")
     ap.add_argument("--dry-run", action="store_true",
@@ -520,7 +743,14 @@ def main(argv=None) -> int:
     if args.renormalise and not args.layer:
         ap.error("--renormalise only makes sense with --layer (X is already scaled)")
 
+    # 0 on the command line means "scanpy default", i.e. the median cell
+    # total. argparse cannot express None for a float, hence the sentinel.
+    if args.target_sum == 0:
+        args.target_sum = None
+
     sys.path.insert(0, str(args.package_dir))
+    if args.fast:
+        tune_cuda(True)
 
     # scanpy is imported later, in the training path only. --dry-run then needs
     # just h5py/numpy/pandas/sklearn, so it stays runnable in a bare env and on
@@ -541,6 +771,7 @@ def main(argv=None) -> int:
     # after the matrix is loaded and normalised.
     check_lognormalised(peek_layer(args.adata, args.layer) if args.layer
                         else peek_x(args.adata),
+                        source=f"layers['{args.layer}']" if args.layer else "X",
                         fatal=not args.renormalise)
 
     # ---- optional subset, applied before targets or folds are built --------
@@ -595,6 +826,27 @@ def main(argv=None) -> int:
         samples = np.array(surv.index)
         strat = surv["status"].values
         y, mapping = None, None
+
+    # Drop undersized bags BEFORE the folds are drawn, so every fold sees the
+    # same cohort. n=1 is a hard requirement, not a preference: attention
+    # entropy is divided by np.log(n_cells) at scsurvival_core.py:575, and
+    # log(1) = 0 yields -inf, which relu() then hides in the forward pass while
+    # the backward pass turns it into NaN weights. Anything above 2 is a QC
+    # judgement and is reported here because it changes the cohort.
+    if args.min_bag_cells > 1:
+        bag_sizes = obs[args.sample_col].astype(str).value_counts()
+        small = [s for s in samples if bag_sizes.get(str(s), 0) < args.min_bag_cells]
+        if small:
+            shown = ", ".join(f"{s}({int(bag_sizes.get(str(s), 0))})"
+                              for s in small[:10])
+            log(f"dropping {len(small)} sample(s) with <{args.min_bag_cells} "
+                f"cells: {shown}" + (" ..." if len(small) > 10 else ""))
+            keep = set(map(str, small))
+            samples = np.array([s for s in samples if str(s) not in keep])
+            if args.task == "cox":
+                surv = surv.loc[samples]
+            else:
+                y = y.loc[samples]
 
     n_cells_kept = int(obs[args.sample_col].astype(str).isin(set(map(str, samples))).sum())
     log(f"{len(samples)} samples with a usable outcome, {n_cells_kept:,} cells retained")
@@ -663,13 +915,17 @@ def main(argv=None) -> int:
 
     log("reading X, obs, var (skipping /raw) ...")
     adata = read_adata_no_raw(args.adata, layer=args.layer,
-                              renormalise=args.renormalise)
+                              renormalise=args.renormalise,
+                              cache_dir=args.cache_dir,
+                              target_sum=args.target_sum)
     adata = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, samples)))].copy()
     log(f"{adata.n_obs:,} cells x {adata.n_vars:,} genes in memory")
     if args.renormalise:
         # Now it must hold: this is what actually reaches the model.
         n = min(200, adata.n_obs)
-        check_lognormalised(adata.X[:n], fatal=True)
+        check_lognormalised(adata.X[:n], fatal=True,
+                            source=f"layers['{args.layer}'] after renormalise"
+                                   if args.layer else "X after renormalise")
 
     if args.protein_coding_csv or args.biotype_col or args.exclude_prefix:
         adata = filter_genes(adata, args)
@@ -695,96 +951,77 @@ def main(argv=None) -> int:
     rows, pred_rows = [], []
     args.results_root.mkdir(parents=True, exist_ok=True)
 
-    for arm in args.arms:
-        overrides = ARMS[arm]
-        log(f"===== arm '{arm}': {overrides} =====")
-        for i, (tr, te) in enumerate(folds):
-            train_s, test_s = samples[tr], samples[te]
-            t0 = time.time()
+    want_folds = set(args.only_folds) if args.only_folds else None
+    if want_folds is not None:
+        bad = want_folds - set(range(len(folds)))
+        if bad:
+            raise SystemExit(f"--only-folds {sorted(bad)} out of range for "
+                             f"--folds {args.folds}")
+        log(f"training only fold(s) {sorted(want_folds)} of {len(folds)}")
 
-            ad_tr = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, train_s)))].copy()
-            # HVGs from the training split only -- selecting on all cells first
-            # leaks test-set variance structure into the feature set.
-            hvg_kw = {"layer": "counts"} if args.hvg_flavor == "seurat_v3" and "counts" in ad_tr.layers else {}
-            sc.pp.highly_variable_genes(ad_tr, n_top_genes=args.n_hvg,
-                                        subset=False, flavor=args.hvg_flavor, **hvg_kw)
-            hvgs = ad_tr.var.index[ad_tr.var["highly_variable"]].tolist()
-            ad_tr = ad_tr[:, hvgs].copy()
-            ad_te = adata[adata.obs[args.sample_col].astype(str).isin(set(map(str, test_s)))][:, hvgs].copy()
+    jobs = [
+        dict(args=args, arm=arm, fold=i,
+             train_s=list(samples[tr]), test_s=list(samples[te]),
+             y=y, surv=surv)
+        for arm in args.arms
+        for i, (tr, te) in enumerate(folds)
+        if want_folds is None or i in want_folds
+    ]
+    # Persist the split itself. PENCIL has to be re-run on *identical* folds or
+    # the head-to-head is not a comparison, and the published
+    # `.predicted_infiltration` in these files was fit on all samples at once.
+    #
+    # GroupKFold takes no random_state -- it orders groups by size and is fully
+    # deterministic -- so this file is a record rather than the only way to
+    # recover the split. --seed drives torch initialisation, not the folds.
+    fold_csv = args.results_root / f"cv_compare_{args.tag}_folds.csv"
+    fold_rows = [
+        dict(sample=str(s), fold=i, role=("test" if j in set(te) else "train"),
+             group=(str(groups[j]) if groups is not None else ""))
+        for i, (tr, te) in enumerate(folds)
+        for j, s in enumerate(samples)
+    ]
+    pd.DataFrame(fold_rows).to_csv(fold_csv, index=False)
+    log(f"fold assignment written to {fold_csv.name} "
+        f"({len(samples)} samples x {len(folds)} folds)")
 
-            common = dict(
-                sample_column=args.sample_col,
-                feature_flavor="AE", rec_likelihood=args.rec_likelihood,
-                gene_weight_alpha=0.2,
-                hidden_size=args.hidden_size, num_heads=args.num_heads,
-                entropy_threshold=args.entropy_threshold,
-                epochs=args.epochs, pretrain_epochs=args.pretrain_epochs,
-                lr=args.lr, dropout=0.5, patience=15,
-                validate=True, validate_ratio=0.2,
-                extract_feature=True, once_load_to_gpu=True, sample_balance=False,
-                fitnetune_strategy="alternating_lightly",
-                **overrides,
+    out_csv = args.results_root / f"cv_compare_{args.tag}.csv"
+    pred_csv = args.results_root / f"cv_compare_{args.tag}_predictions.csv"
+
+    def _record(row, prs):
+        rows.append(row)
+        pred_rows.extend(prs)
+        log(f"  [{len(rows)}/{len(jobs)}] arm={row['arm']} fold={row['fold']}: "
+            + "  ".join(f"{k}={v}" for k, v in row.items()
+                        if k not in ("arm", "fold", "n_train", "n_test", "n_hvg"))
             )
+        # Written after every completion, so an interrupted run still leaves
+        # usable partial results.
+        pd.DataFrame(rows).sort_values(["arm", "fold"]).to_csv(out_csv, index=False)
+        pd.DataFrame(pred_rows).to_csv(pred_csv, index=False)
 
-            if args.task == "regression":
-                ad_tr, res_tr, model = scSurvivalRun(
-                    ad_tr, y_label=y.loc[train_s], task_type="regression",
-                    validate_metric="mse", **common)
-            elif args.task == "classification":
-                ad_tr, res_tr, model = scSurvivalRun(
-                    ad_tr, y_label=y.loc[train_s], task_type="classification",
-                    num_classes=1, validate_metric="auc", **common)
-            else:
-                ad_tr, res_tr, model = scSurvivalRun(
-                    ad_tr, surv=surv.loc[train_s], task_type="cox",
-                    validate_metric="ccindex", **common)
+    if args.jobs > 1:
+        import concurrent.futures as cf
+        import multiprocessing as mp
 
-            # Score held-out samples one at a time, as benchmark.ipynb does.
-            preds = {}
-            for s in test_s:
-                ad_s = ad_te[ad_te.obs[args.sample_col].astype(str) == str(s)].copy()
-                ad_pred, p = PredictIndSample(ad_s, adata=ad_tr, model=model)
-                preds[s] = float(np.ravel(p)[0])
-
-                # Per-sample out-of-fold record. Two reasons this matters:
-                #
-                # 1. Pooling 35 predictions into ONE metric beats averaging five
-                #    7-donor AUROCs, where attainable values step by 0.04-0.08 and
-                #    a single donor swapping rank moves a fold by up to 0.083.
-                # 2. The attention statistics are the only direct test of what the
-                #    orthogonal-head and consistency losses actually target. They
-                #    shape *which cells* are attended to; c-index and AUROC cannot
-                #    see that, so a null there says nothing about the mechanism.
-                rec = dict(arm=arm, fold=i, sample=str(s), pred=preds[s])
-                if args.task == "regression":
-                    rec["y_true"] = float(y.loc[s])
-                elif args.task == "classification":
-                    rec["y_true"] = int(y.loc[s])
-                else:
-                    rec["time"] = float(surv.loc[s, "time"])
-                    rec["status"] = int(surv.loc[s, "status"])
-                rec.update(attention_stats(ad_pred))
-                pred_rows.append(rec)
-
-            if args.task == "regression":
-                m = score("regression", y.loc[test_s].values,
-                          [preds[s] for s in test_s])
-            elif args.task == "classification":
-                m = score("classification", y.loc[test_s].values,
-                          [preds[s] for s in test_s])
-            else:
-                m = score("cox", (surv.loc[test_s, "time"].values,
-                                  surv.loc[test_s, "status"].values),
-                          [preds[s] for s in test_s])
-
-            row = dict(arm=arm, fold=i, n_train=len(train_s), n_test=len(test_s),
-                       n_hvg=len(hvgs), seconds=round(time.time() - t0, 1), **m)
-            rows.append(row)
-            log(f"  fold {i}: " + "  ".join(f"{k}={v}" for k, v in m.items())
-                + f"  ({row['seconds']}s)")
-
-            pd.DataFrame(rows).to_csv(
-                args.results_root / f"cv_compare_{args.tag}.csv", index=False)
+        # 'spawn', not fork: a forked CUDA context is unusable, and the parent
+        # has already initialised CUDA by this point on most paths.
+        ctx = mp.get_context("spawn")
+        log(f"running {len(jobs)} (arm, fold) tasks across {args.jobs} processes")
+        with cf.ProcessPoolExecutor(max_workers=args.jobs,
+                                    mp_context=ctx) as pool:
+            futs = {pool.submit(_fold_job, j): j for j in jobs}
+            for fut in cf.as_completed(futs):
+                j = futs[fut]
+                try:
+                    _record(*fut.result())
+                except Exception as e:                       # noqa: BLE001
+                    log(f"  FAILED arm={j['arm']} fold={j['fold']}: "
+                        f"{type(e).__name__}: {e}")
+                    raise
+    else:
+        for j in jobs:
+            _record(*_fold_job(j))
 
     df = pd.DataFrame(rows)
     metric = {"classification": "auroc", "cox": "cindex",
@@ -792,8 +1029,10 @@ def main(argv=None) -> int:
     summary = df.groupby("arm")[metric].agg(["mean", "std", "count"])
 
     print("\n" + "=" * 60)
-    print(f"{args.tag}  --  {metric} over {args.folds} folds, "
-          f"{len(samples)} samples")
+    n_ran = df["fold"].nunique() if not df.empty else 0
+    scope = (f"{n_ran} of {args.folds} folds"
+             if args.only_folds else f"{args.folds} folds")
+    print(f"{args.tag}  --  {metric} over {scope}, {len(samples)} samples")
     print("=" * 60)
     print(summary.to_string())
     if {"on", "off"} <= set(summary.index):

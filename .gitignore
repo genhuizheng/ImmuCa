@@ -42,3 +42,10 @@ data/**
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+
+#--- PENCIL's own run artefacts --------------------------------------------
+# PENCIL writes ./results/<data_name>/py/<expr_id>/{report.txt,*.csv,*.pdf}
+# relative to the CWD, named from the `data_name` we pass. Ours are the
+# per-fold tags, so they appear as results/<tag>_fold<N>/. Our own result CSVs
+# sit directly in results/ and stay tracked.
+results/*_fold*/

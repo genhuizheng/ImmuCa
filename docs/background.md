@@ -962,3 +962,77 @@ The three loss terms measurably concentrate attention. On CAR-T that hurt, at 22
 effective training donors. Here cell selection **is** the deliverable and there
 are ~180 samples, so sharper attention may be an advantage rather than a cost.
 That is now the thing to test.
+
+### The NaN that blocked the first prostate run
+
+SLURM 987992 died after 95s with
+
+```
+ValueError: Expected parameter loc (Tensor of shape (4514, 1998)) ...
+found invalid values: tensor([[nan, nan, ...
+```
+
+`loc` is `recon_x`, the VAE decoder output, so the weights were already NaN
+before that forward pass. The input was verified clean in the same log: 21
+zero-total cells dropped, `normalize_total(1e4) + log1p` applied, max 8.39, no
+non-finite values. So the divergence is in training, not in the data.
+
+**Reading the source narrowed the candidates and eliminated the two obvious
+ones.** `recon_logvar` cannot overflow: it is a frozen `nn.Parameter`
+(`requires_grad=False`, `base_module.py:115`) *and* clamped to [-10, 10]
+(`base_module.py:146`). `recon_pi` is sigmoid-bounded (`base_module.py:149`).
+What remained:
+
+1. `VAE.fc_logvar` is learnable and unclamped, and `reparameterize` does
+   `std = exp(0.5*logvar)` (`base_module.py:130`). The KLD that should restrain
+   it is `clamp(kld_per_item - tau, min=0)` (`scsurvival_module.py:136`,
+   `tau=0.2`) -- a free-bits term contributing **zero gradient** below `tau`.
+2. `pretrain_batch_size` defaults to `max_len`, the largest bag
+   (`scsurvival_core.py:410-412,430`) -- 4,514 here, matching the traceback exactly --
+   and the AE loss is a `.sum()` over batch x genes = 9.0M terms.
+3. The file is already 2,000 HVGs, so `normalize_total(target_sum=1e4)` rescales
+   each cell across 2,000 genes rather than a transcriptome: a 10-30x inflation.
+
+`scripts/diag_nan.py` moves one candidate per variant. **SLURM 988067:**
+
+| variant | result | what it says |
+|---|---|---|
+| `baseline` | **OK**, 14s | the failing config survives at this scale |
+| `lr_1e-4` | OK, 7s | -- |
+| `batch_512` | FAILED | `RuntimeError: size of tensor a (18) must match b (...)` |
+| `rec_G` | OK, 6s | -- |
+| `scvi_layer` | FAILED | package rejects it: *"X should be log-normalized"* |
+
+Three conclusions, the first of which overturned the hypothesis:
+
+- **Not the learning rate, not ZIG, not the log-normalisation.** Baseline
+  survived. Candidate 3 is dead.
+- **`instance_batch_size` is not adjustable at all.** The size mismatch is a
+  bag count, so the code assumes the minibatch *is* the bag. Candidate 2 is dead
+  as a lever, and this is worth telling the authors: the parameter is
+  documented (`scsurvival_core.py:234`) but unusable.
+- **`layers['scvi']` is not log-normalised** and fails the package's own input
+  check, so the "feed both methods what PENCIL eats" option needs an explicit
+  `log1p` first.
+
+**Caveat on that table.** The diagnostic ran 20+20 epochs against the real run's
+500+200, and `logvar` drift is cumulative by construction, so `baseline: OK` at
+epoch 20 is not evidence about epoch 200. Two follow-ups separate the two
+remaining differences -- SLURM **988277** (same 24 bags, full 200+500 schedule)
+and **988278** (all 180 bags, short schedule).
+
+### The per-fold HVG selection is a no-op on this file
+
+`cv_compare.py:709` re-selects HVGs inside each training fold to avoid leakage,
+with `--n-hvg 2000` (`cv_compare.py:477`). But
+`cancer_cells_with_results.h5ad` **already has exactly 2,000 genes**, so asking
+for the top 2,000 of 2,000 merely drops the 2 with undefined dispersion -- which
+is where the traceback's `1998` comes from.
+
+The consequence is not a bug but a limit on what can be claimed: ImmuCa chose
+those 2,000 HVGs using **all** samples, and that choice cannot be undone from
+this file. PENCIL and scSurvival inherit it equally, so the head-to-head remains
+fair, but **neither arm is leakage-free in absolute terms**. Say so in the
+writeup rather than describing the CV as leakage-safe. Undoing it would mean
+going back to the pre-HVG object (`sce_all_samples_scVI.h5ad`) and re-deriving
+the cancer-cell subset, which is a larger job than this comparison needs.
