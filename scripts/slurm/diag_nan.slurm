@@ -62,6 +62,7 @@ echo
 
 ONLY_ARGS=()
 [[ -n "${DIAG_ONLY:-}" ]] && ONLY_ARGS=(--only "$DIAG_ONLY")
+[[ -n "${DIAG_AUDIT:-}" ]] && ONLY_ARGS+=(--audit)
 
 # `|| rc=$?` because diag_nan.py exits 1 when NO variant survives. That is a
 # result, not a crash: the summary table is already printed and is the thing

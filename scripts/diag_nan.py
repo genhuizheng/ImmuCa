@@ -54,6 +54,7 @@ import traceback
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
@@ -90,6 +91,102 @@ def matrix_stats(ad) -> str:
             f"zeros {100 * (1 - nz.size / total):.1f}%  non-finite {n_bad:,}")
 
 
+def audit(args) -> int:
+    """Characterise the cells. No training, no GPU needed.
+
+    988277 (24 bags, full 200+500 epochs) survived; 988278 (180 bags, 20 epochs)
+    died in 14s inside `pretrain_epoch`. Pretraining concatenates every cell and
+    reshuffles into fixed minibatches, so bag structure is not involved -- the
+    cause has to be specific cells present in the 180-bag set and absent from
+    the 24 largest bags. The two runs' input stats differ in exactly one place:
+    min(nonzero) falls from 1.281 to 1.119e-05.
+    """
+    from scipy import sparse
+
+    # Raw first: the normalised view hides which cells were odd to begin with.
+    raw = read_adata_no_raw(args.adata, layer="counts", renormalise=False)
+    Xr = raw.X.tocsr() if sparse.issparse(raw.X) else sparse.csr_matrix(raw.X)
+    tot = np.asarray(Xr.sum(axis=1)).ravel()
+    mx = np.asarray(Xr.max(axis=1).todense()).ravel()
+    nnz = np.diff(Xr.indptr)
+
+    log("=== layers['counts'], before any normalisation ===")
+    for nm, v in (("cell total", tot), ("cell max", mx),
+                  ("genes detected", nnz.astype(float))):
+        q = np.percentile(v, [0, 1, 50, 99, 100])
+        log(f"  {nm:<16} min {q[0]:.4g}  p1 {q[1]:.4g}  median {q[2]:.4g}  "
+            f"p99 {q[3]:.4g}  max {q[4]:.4g}")
+
+    # A cell is "fractional" if any stored value is not an integer. These are
+    # the 1.49% of non-integer values, localised to cells rather than counted
+    # globally -- the global fraction cannot say whether they are spread thin
+    # or concentrated in a handful of pathological cells.
+    frac_val = ~np.isclose(Xr.data, np.rint(Xr.data))
+    cell_of = np.repeat(np.arange(Xr.shape[0]), nnz)
+    frac_cells = np.unique(cell_of[frac_val])
+    log(f"  cells containing a non-integer value: {frac_cells.size:,} "
+        f"of {Xr.shape[0]:,} ({100 * frac_cells.size / Xr.shape[0]:.2f}%)")
+
+    # Concentration: one gene holding most of the cell is what produces the
+    # 9.21 ceiling (log1p of the full 1e4 target landing in a single gene).
+    with np.errstate(divide="ignore", invalid="ignore"):
+        conc = np.where(tot > 0, mx / tot, 0.0)
+    for t in (0.5, 0.9, 0.99):
+        log(f"  cells whose top gene is >{t:.0%} of the cell: "
+            f"{int((conc > t).sum()):,}")
+
+    # Now the normalised matrix the model actually sees.
+    ad = read_adata_no_raw(args.adata, layer="counts", renormalise=True)
+    X = ad.X.tocsr() if sparse.issparse(ad.X) else sparse.csr_matrix(ad.X)
+    nnz2 = np.diff(X.indptr)
+    cell_of2 = np.repeat(np.arange(X.shape[0]), nnz2)
+    order = np.argsort(X.data)
+
+    log("=== after normalize_total(1e4) + log1p ===")
+    log(f"  smallest 10 nonzero values and the cells holding them:")
+    seen = set()
+    for j in order[:400]:
+        c = int(cell_of2[j])
+        if c in seen:
+            continue
+        seen.add(c)
+        log(f"    value {X.data[j]:.4g}  cell {c}  raw total {tot[c]:.6g}  "
+            f"raw max {mx[c]:.6g}  genes {nnz[c]}  top-gene frac {conc[c]:.4f}")
+        if len(seen) >= 10:
+            break
+
+    # Which bags do the pathological cells live in? If they cluster in the
+    # small bags, dropping low-cell samples is both the fix and good QC.
+    tiny = np.where(X.data < 1e-3)[0]
+    bad_cells = np.unique(cell_of2[tiny])
+    sizes = ad.obs[args.sample_col].astype(str).value_counts()
+    log(f"  cells carrying a value < 1e-3: {bad_cells.size:,}")
+    if bad_cells.size:
+        bags = ad.obs[args.sample_col].astype(str).values[bad_cells]
+        vc = pd.Series(bags).value_counts()
+        log(f"  spread over {vc.size} bag(s); top 10 by affected-cell count:")
+        for b, n in vc.head(10).items():
+            log(f"    bag {b!s:<28} {n:>6,} affected  of {int(sizes.get(b, 0)):>6,} cells")
+
+    log("=== bag sizes (all 180) ===")
+    q = np.percentile(sizes.values, [0, 1, 50, 99, 100])
+    log(f"  min {q[0]:.0f}  p1 {q[1]:.0f}  median {q[2]:.0f}  "
+        f"p99 {q[3]:.0f}  max {q[4]:.0f}")
+    for t in (1, 10, 50, 100):
+        log(f"  bags with <= {t:>3} cells: {int((sizes.values <= t).sum()):>3}")
+    log("  the 8 smallest bags: " +
+        ", ".join(f"{b}({n})" for b, n in sizes.tail(8).items()))
+
+    # A one-cell bag is separately fatal later: normalised attention entropy
+    # divides by log(n_cells), which is 0 when n_cells == 1.
+    n1 = int((sizes.values == 1).sum())
+    if n1:
+        log(f"  NOTE: {n1} bag(s) hold a single cell. Normalised attention "
+            "entropy divides by log(n_cells) = 0 there, so these would produce "
+            "NaN during fine-tuning even if pretraining were fixed.")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -107,7 +204,14 @@ def main(argv=None) -> int:
     ap.add_argument("--allow-cpu", action="store_true",
                     help="train without a GPU. ~50x slower; for argument "
                          "checking only, not for a result")
+    ap.add_argument("--audit", action="store_true",
+                    help="characterise the cells, train nothing. Added after "
+                         "988277/988278 showed the failure is scale-dependent "
+                         "and lands in pretraining, so the cause is cell-level")
     args = ap.parse_args(argv)
+
+    if args.audit:
+        return audit(args)
 
     sys.path.insert(0, str(args.package_dir))
     import torch
