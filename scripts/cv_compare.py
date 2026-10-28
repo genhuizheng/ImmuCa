@@ -186,7 +186,7 @@ def _fold_job(payload):
                                         validate_metric="ccindex", **common)
 
     # Score held-out samples one at a time, as benchmark.ipynb does.
-    preds, pred_rows = {}, []
+    preds, pred_rows, cell_rows = {}, [], []
     te_col = ad_te.obs[args.sample_col].astype(str)
     for s in test_s:
         ad_s = ad_te[te_col == str(s)].copy()
@@ -213,6 +213,28 @@ def _fold_job(payload):
         rec.update(attention_stats(ad_pred))
         pred_rows.append(rec)
 
+        # Per-CELL export. The summary statistics above answer "is attention
+        # sharper?"; they cannot answer "are these the SAME cells PENCIL
+        # selected?", which is the whole point of the cell-level comparison.
+        #
+        # obs['attention'] here is a per-cell gate in (0,1) -- sigmoid of the
+        # strongest of 8 heads (scsurvival_core.py:933-935) -- not a softmax
+        # over cells, so it is comparable across samples without renormalising.
+        # 'prediction' is the signed per-cell value; attention alone carries no
+        # direction.
+        if args.export_cells and ad_pred is not None:
+            o = ad_pred.obs
+            cols = {"cell": ad_pred.obs_names.astype(str),
+                    "sample": str(s), "arm": arm, "fold": i}
+            for src, dst in (("attention", "attention"),
+                             ("prediction", "cell_pred"),
+                             ("prediction_adj", "cell_pred_adj"),
+                             ("hazard", "cell_pred"),
+                             ("hazard_adj", "cell_pred_adj")):
+                if src in o and dst not in cols:
+                    cols[dst] = np.asarray(o[src], dtype=float)
+            cell_rows.append(pd.DataFrame(cols))
+
     if args.task == "cox":
         m = score("cox", (surv.loc[test_s, "time"].values,
                           surv.loc[test_s, "status"].values),
@@ -222,7 +244,8 @@ def _fold_job(payload):
 
     row = dict(arm=arm, fold=i, n_train=len(train_s), n_test=len(test_s),
                n_hvg=len(hvgs), seconds=round(time.time() - t0, 1), **m)
-    return row, pred_rows
+    cells = pd.concat(cell_rows, ignore_index=True) if cell_rows else None
+    return row, pred_rows, cells
 
 
 def tune_cuda(enable: bool) -> None:
@@ -706,6 +729,12 @@ def main(argv=None) -> int:
                          "4 GB read plus normalize_total+log1p every time, "
                          "which dominates a debugging iteration. Numerically "
                          "identical: it stores exactly what was computed.")
+    ap.add_argument("--export-cells", action="store_true",
+                    help="also write one row per held-out CELL with its "
+                         "attention and per-cell prediction. Required for the "
+                         "cell-level comparison against PENCIL; the per-sample "
+                         "attention summaries cannot answer whether the two "
+                         "methods pick the SAME cells.")
     ap.add_argument("--fast", action="store_true",
                     help="enable TF32 matmuls (Ampere and later). ~2x on the "
                          "Linear layers this model is made of.")
@@ -988,9 +1017,18 @@ def main(argv=None) -> int:
     out_csv = args.results_root / f"cv_compare_{args.tag}.csv"
     pred_csv = args.results_root / f"cv_compare_{args.tag}_predictions.csv"
 
-    def _record(row, prs):
+    cell_csv = args.results_root / f"cv_compare_{args.tag}_cells.csv"
+    # Written in append mode as folds finish, so a stale file from an
+    # earlier run would silently double the rows.
+    if args.export_cells and cell_csv.exists():
+        cell_csv.unlink()
+
+    def _record(row, prs, cells=None):
         rows.append(row)
         pred_rows.extend(prs)
+        if cells is not None and not cells.empty:
+            cells.to_csv(cell_csv, mode="a", index=False,
+                         header=not cell_csv.exists())
         log(f"  [{len(rows)}/{len(jobs)}] arm={row['arm']} fold={row['fold']}: "
             + "  ".join(f"{k}={v}" for k, v in row.items()
                         if k not in ("arm", "fold", "n_train", "n_test", "n_hvg"))

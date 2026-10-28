@@ -1,0 +1,2 @@
+method,config,lambda_L1,shuffle_rate,fold,n_train,n_test,n_cells_test,frac_selected,n_no_selected_cell,seconds,r2_allcells,mae_allcells,spearman_allcells,r2_selected,mae_selected,spearman_selected
+pencil,immuca,0.001,1.0,4,141,35,19057,0.11607283412919138,14,67.8,-0.27198323004360514,0.2531098365276199,-0.05621400186432416,-0.19217921113160363,0.24152164028406142,-0.09016782253926683

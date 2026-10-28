@@ -160,6 +160,7 @@ python "$repo/scripts/cv_compare.py" \
     --arms         "$arm" \
     --min-bag-cells "${CV_MIN_BAG:-2}" \
     --cache-dir    "$cache" \
+    --export-cells \
     --fast \
     --jobs         1 \
     --epochs       "${CV_EPOCHS:-500}" \

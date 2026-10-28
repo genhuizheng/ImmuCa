@@ -978,10 +978,13 @@ zero-total cells dropped, `normalize_total(1e4) + log1p` applied, max 8.39, no
 non-finite values. So the divergence is in training, not in the data.
 
 **Reading the source narrowed the candidates and eliminated the two obvious
-ones.** `recon_logvar` cannot overflow: it is a frozen `nn.Parameter`
-(`requires_grad=False`, `base_module.py:115`) *and* clamped to [-10, 10]
-(`base_module.py:146`). `recon_pi` is sigmoid-bounded (`base_module.py:149`).
-What remained:
+ones.** `recon_pi` is sigmoid-bounded (`base_module.py:149`). `recon_logvar`
+cannot overflow either, but **not for the reason stated in an earlier draft of
+this file**: it is initialised frozen (`base_module.py:115`), yet the AE path we
+actually use re-enables it — `scsurvival.py:328-329` copies per-gene non-zero
+variances into it and sets `requires_grad = True`. What makes it safe is the
+clamp to [-10, 10] applied on every forward pass (`base_module.py:146`), not the
+freezing. What remained:
 
 1. `VAE.fc_logvar` is learnable and unclamped, and `reparameterize` does
    `std = exp(0.5*logvar)` (`base_module.py:130`). The KLD that should restrain

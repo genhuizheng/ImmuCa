@@ -154,11 +154,31 @@ former.
 `attention_stats()` in `cv_compare.py` records max, mean, entropy, top-1% mass
 and the fraction above 0.5 per sample.
 
-**Attention normalisation.** `attens = F.softmax(attens / temperature, dim=0)`
-over the cells of one bag (`scsurvival_core.py:572`). It is therefore a
-*within-bag* distribution: attention values are not comparable across samples
-without accounting for bag size, and larger bags necessarily have smaller mean
-attention. Phase 3 must rank within sample, never pool raw attention.
+**Attention normalisation -- two different quantities, do not confuse them.**
+
+1. What the **training loss** sees is a within-bag distribution:
+   `attens = F.softmax(attens / temperature, dim=0)` over the cells of one bag
+   (`scsurvival_core.py:572`, and `:995` at prediction time). Bag size enters
+   directly, which is exactly why `log(1) = 0` breaks it at n=1.
+2. What is **exported to `obs['attention']`** is not that. `predict_cells`
+   does (`scsurvival_core.py:933-935`):
+
+   ```python
+   a = torch.sigmoid(a)        # 8 heads, each squashed to (0,1)
+   a = a.max(dim=1)[0]         # max over heads
+   ```
+
+   so the column is a **per-cell gate in (0,1)**, the strongest of 8 heads --
+   never normalised across cells. Measured: mean 0.65, max 0.77-0.95, and 75-98%
+   of cells exceed 0.5, none of which a softmax over thousands of cells could
+   produce.
+
+**Consequence for Phase 3, and it is the opposite of what a softmax would
+imply:** the exported attention *is* comparable across samples and carries no
+bag-size dependence, so a single threshold across the cohort is legitimate and
+within-sample ranking is a choice rather than a requirement. `attention_stats`
+in `cv_compare.py` renormalises to a simplex before taking entropy, which is a
+defensible derived statistic but is **not** the entropy the loss penalises.
 
 **Attention magnitude is not a signed association.** Softmax weights are
 non-negative and sum to 1 per bag. A cell receiving high attention is
