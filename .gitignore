@@ -44,8 +44,16 @@ __pycache__/
 .ipynb_checkpoints/
 
 #--- PENCIL's own run artefacts --------------------------------------------
-# PENCIL writes ./results/<data_name>/py/<expr_id>/{report.txt,*.csv,*.pdf}
-# relative to the CWD, named from the `data_name` we pass. Ours are the
-# per-fold tags, so they appear as results/<tag>_fold<N>/. Our own result CSVs
-# sit directly in results/ and stay tracked.
-results/*_fold*/
+#--- Results: NEVER in git ---------------------------------------------------
+# Results are produced on Vista and travel by scp, not by git. Committing them
+# makes `git pull` on Vista collide with the very files that generated them --
+# which is exactly what happened at d999c85, where ~50 downloaded CSVs were
+# committed and the next pull aborted on "untracked working tree files would be
+# overwritten". The directory itself stays, via .gitkeep.
+results/**
+!results/
+!results/.gitkeep
+
+# PENCIL also writes ./results/<data_name>/py/<expr_id>/{report.txt,*.csv,*.pdf}
+# relative to the CWD. Covered by the rule above; noted here so the directories
+# are not mistaken for ours.

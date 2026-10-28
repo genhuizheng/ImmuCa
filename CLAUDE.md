@@ -48,6 +48,11 @@ schema, metadata keys, curation rules — from the other directories under
 Genhui sets up TACC and git themselves. Provide commands; do not run `git
 init`/`commit`/`push` or TACC setup on their behalf.
 
+**Results never go in git.** Not `results/*.csv`, not plots, not logs — nothing
+a run produced. Results are generated on Vista and travel by `scp`. Committing
+them makes `git pull` on Vista collide with the very files that produced them.
+When staging, name the files explicitly; never `git add -A` or `git add .`.
+
 ## Analysis conventions
 
 **Not yet defined.** To be filled in once the project is scoped: input
